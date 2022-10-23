@@ -386,7 +386,6 @@ function main_menu() {
         avatar_mode
     elif [[ "${modeoptions[$modechoice]}" == "Help" ]]
     then
-        ask_for_output_folder
         help_screen
     elif [[ "${modeoptions[$modechoice]}" == "Exit" ]]
     then
@@ -439,11 +438,12 @@ function help_screen() {
     echo ""
 
     echo "In all modes you can enter an output directory for the downloaded videos. If you don't enter anything, the default directory will be used (if set)."
+    echo ""
     echo "In all prompts you can enter 'q', 'quit' or 'exit' to exit the program. Enter 'b' or 'back' to go back to the main menu."
 
     echo ""
 
-    # run the function again
+    # return to main menu
     main_menu
 
 }
