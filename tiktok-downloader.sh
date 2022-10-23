@@ -158,6 +158,12 @@ function batch_mode() {
         echo ""
         batch_mode
     fi
+    
+    # if the input is empty, "q", "quit" or "exit", exit the program
+    if [[ $file_path == "" ]] || [[ $file_path == "exit" ]] || [[ $file_path == "quit" ]] || [[ $file_path == "q" ]]
+    then
+        exit 0
+    fi
 
     # if the input isn't a txt file, print an error message and restart the function
     if [[ ! $file_path == *.txt ]]
@@ -165,12 +171,6 @@ function batch_mode() {
         echo -e "\e[1;31mError: The file must be a .txt file!\e[0m"
         echo ""
         batch_mode
-    fi
-
-    # if the input is empty, "q", "quit" or "exit", exit the program
-    if [[ $file_path == "" ]] || [[ $file_path == "exit" ]] || [[ $file_path == "quit" ]] || [[ $file_path == "q" ]]
-    then
-        exit 0
     fi
 
     # strip spaces from the file path
