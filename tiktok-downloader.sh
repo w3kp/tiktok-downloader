@@ -11,7 +11,7 @@
 # on macOS additionally: ggrep (https://formulae.brew.sh/formula/grep)
 
 output_folder=""
-default_folder=""
+default_folder=""  # set here your default download folder (optional)
 
 ### Functions
 
