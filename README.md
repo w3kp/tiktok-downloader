@@ -19,7 +19,7 @@ The script is confirmed working on macOS[^1], but it should run on all plattform
 
 Windows users need to use Cygwin or WSL to run bash scripts. Most Linux distributions and macOS[^1] should have bash already installed.
 
-Like all bash scripts, the file has to be marked as exectuable. To do this, open a terminal window and paste `chmod +x /path/to/tiktok-downloader.sh`. Once that is done, you can double-click it to run.
+Simply downloaded `tiktok-downloader.sh` from the files above. Like all bash scripts, the file has to be marked as exectuable. To do this, open a terminal window and paste `chmod +x /path/to/tiktok-downloader.sh`. Once that is done, you can double-click it to run.
 
 If you don't already have it installed you also need to install [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 
