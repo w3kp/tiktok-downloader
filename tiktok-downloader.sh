@@ -2,16 +2,16 @@
 
 # This script allows you to use yt-dlp to download a TikTok video.
 # The script has both a mode for downloading a single video and a mode to download all videos passed to the script via a text file.
+# In "Avatar Mode" the script downloads the profile picture of a TikTok channel in the highest resolution available.
 
+# Version 1.1 (2022-10-23) - added "Avatar Mode"
 # Version 1.0 (2022-10-23) - initial version
 
 # Dependencies: yt-dlp
+# on macOS additionally: ggrep (https://formulae.brew.sh/formula/grep)
 
 output_folder=""
-
-### You can hardcode a default folder here:
 default_folder=""
-###
 
 ### Functions
 
@@ -81,7 +81,7 @@ function select_option {
 
 ## function: single mode
 function single_mode() {
-   
+
     url=""
     username=""
     videoid=""
@@ -96,7 +96,15 @@ function single_mode() {
     # if the input is empty, "q", "quit" or "exit", exit the program
     if [[ $url == "" ]] || [[ $url == "exit" ]] || [[ $url == "quit" ]] || [[ $url == "q" ]]
     then
+        echo ""
         exit 0
+    fi
+
+    # if the input is "b" or "back", go back to the main menu
+    if [[ $url == "b" ]] || [[ $url == "back" ]]
+    then
+        echo ""
+        main_menu
     fi
 
     # if the URL contains a "?" remove it and everything after it
@@ -128,8 +136,8 @@ function single_mode() {
     # download the video using yt-dlp
     yt-dlp -q "$url" -o "$output_folder/$output_name"
 
-    # check if the video was downloaded successfully and the file is bigger than 50 KB
-        if [[ ! -f "$output_folder/$output_name" ]] && [[ $(stat -c%s "$output_folder/$output_name") -lt 50000 ]]
+    # check if the video was downloaded successfully
+        if [[ ! -f "$output_folder/$output_name" ]]
         then 
             # if no, print an error message
             echo -e "\e[1;31m  Download failed!\e[0m"
@@ -158,11 +166,19 @@ function batch_mode() {
         echo ""
         batch_mode
     fi
-    
+
     # if the input is empty, "q", "quit" or "exit", exit the program
     if [[ $file_path == "" ]] || [[ $file_path == "exit" ]] || [[ $file_path == "quit" ]] || [[ $file_path == "q" ]]
     then
+        echo ""
         exit 0
+    fi
+
+    # if the input is "b" or "back", go back to the main menu
+    if [[ $file_path == "b" ]] || [[ $file_path == "back" ]]
+    then
+        echo ""
+        main_menu
     fi
 
     # if the input isn't a txt file, print an error message and restart the function
@@ -231,8 +247,8 @@ function batch_mode() {
         yt-dlp -q "$url" -o "$output_folder/$output_name"
 
 
-        # check if the video was downloaded successfully and the file is bigger than 50 KB
-        if [[ ! -f "$output_folder/$output_name" ]] && [[ $(stat -c%s "$output_folder/$output_name") -lt 50000 ]]
+        # check if the video was downloaded successfully
+        if [[ ! -f "$output_folder/$output_name" ]]
         then
 
             # if no, print an error message
@@ -255,44 +271,197 @@ function batch_mode() {
 
 }
 
+## function: avatar mode
+function avatar_mode() {
+
+    username=""
+    userurl=""
+    avatarurl=""
+
+
+    # ask user for TikTok username
+    echo -e "\n\e[1;35mEnter TikTok username or profile URL: \e[0m"
+    read -rep $'\e[1;35m> \e[0m' username
+
+    # if the input is empty, "q", "quit" or "exit", exit the program
+    if [[ $username == "" ]] || [[ $username == "exit" ]] || [[ $username == "quit" ]] || [[ $username == "q" ]]
+    then
+        echo ""
+        exit 0
+    fi
+
+    # if the input is "b" or "back", go back to the main menu
+    if [[ $username == "b" ]] || [[ $username == "back" ]]
+    then
+        echo ""
+        main_menu
+    fi
+
+    # if the username doesn't start with "https://www.tiktok.com/@" prepend it to the username; save it to userurl
+    if [[ $username == "https://www.tiktok.com/@"* ]]; then
+
+        # if the username contains a "?" remove it and everything after it
+        if [[ $username == *"?"* ]]; then
+            userurl=$(echo $username | cut -d'?' -f1)
+        else
+            userurl=$username
+        fi
+
+        # directly pass the input to the destination variable
+        userurl=$username
+
+        # now edit the username variable to only contain the username
+        username=${username#"https://www.tiktok.com/@"}
+
+    else
+
+        userurl="https://www.tiktok.com/@$username"
+
+    fi
+
+    # create a temporary file in the current directory
+    tempfile=$(mktemp)
+
+    # use curl to get the html source code of the user's profile page and save it to the temporary file
+    # The user agent is needed, as TkikTok will only show a blank page if curl doesn't pretend to be a browser.
+    curl "$userurl" -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36" > "$tempfile"
+
+    # in the temporary file, look for the JSON object that contains "avatarLarger" and save that value to avatarurl
+
+    # if "ggrep" is installed, use it, otherwise use "grep"
+    if command -v ggrep &> /dev/null
+    then
+        avatarurl=$(ggrep -oP '(?<="avatarLarger":")[^"]*' "$tempfile")
+    else
+        avatarurl=$(grep -oP '(?<="avatarLarger":")[^"]*' "$tempfile")
+    fi
+
+    # in avatarurl, replace all occurrences of "\u002F" with "/"
+    avatarurl=${avatarurl//\\u002F/\/}
+
+    # download the avatar image to username.jpg
+    curl "$avatarurl" -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36" -o "$output_folder/$username.jpg"
+
+    # check if the image was downloaded successfully
+    if [[ ! -f "$output_folder/$username.jpg" ]]
+    then
+        # if no, print an error message
+        echo -e "\e[1;31mDownload failed!\e[0m"
+    fi
+
+    # delete the temporary file
+    rm "$tempfile"
+
+    # print an empty line
+    echo ""
+
+    # repeat the function
+    avatar_mode
+
+
+}
+
+
+## function: main menu
+function main_menu() {
+
+    # show a selection menu with the options "single mode" "batch mode" and save the user input in the variable mode
+    echo -e "\n\e[1;35mWhich mode do you want to use?\e[0m"
+
+    modeoptions=("Single Mode" "Batch Mode" "Avatar Mode" "Help" "Exit")
+    select_option "${modeoptions[@]}"
+    modechoice=$?
+
+    if [[ "${modeoptions[$modechoice]}" == "Single Mode" ]]
+    then
+        ask_for_output_folder
+        single_mode
+    elif [[ "${modeoptions[$modechoice]}" == "Batch Mode" ]]
+    then
+        ask_for_output_folder
+        batch_mode
+    elif [[ "${modeoptions[$modechoice]}" == "Avatar Mode" ]]
+    then
+        ask_for_output_folder
+        avatar_mode
+    elif [[ "${modeoptions[$modechoice]}" == "Help" ]]
+    then
+        ask_for_output_folder
+        help_screen
+    elif [[ "${modeoptions[$modechoice]}" == "Exit" ]]
+    then
+        exit 0
+    fi
+
+}
+
+
+## function: ask_for_output_folder
+function ask_for_output_folder() {
+
+    # ask the user to enter an output directory
+    echo -e "\n\e[1;35mEnter output directory: \e[0m"
+    read -rep $'\e[1;35m> \e[0m' -i "$default_folder" output_folder
+
+    # if the input is empty, "q", "quit" or "exit", exit the program
+    if [[ $output_folder == "" ]] || [[ $output_folder == "exit" ]] || [[ $output_folder == "quit" ]] || [[ $output_folder == "q" ]]
+    then
+        exit 0
+    fi
+
+    # if the input is "b" or "back", go back to the main menu
+    if [[ $output_folder == "b" ]] || [[ $output_folder == "back" ]]
+    then
+        main_menu
+    fi
+
+    # if the input isn't a directory, print an error message and exit the program
+    if [[ ! -d $output_folder ]]
+    then
+        echo -e "\e[1;31mError: The entered path doesn't exist or isn't a directory!\e[0m"
+        echo ""
+        exit 1
+    fi
+
+}
+
+## function: help screen
+function help_screen() {
+
+    echo -e "\n\e[1mHelp\e[0m"
+    echo -e "\e[1m====\e[0m"
+    echo -e "\e[1mSingle Mode\e[0m"
+    echo -e "  In single mode, you can download a single TikTok video by entering the TikTok URL."
+    echo -e "\e[1mBatch Mode\e[0m"
+    echo -e "  In batch mode, you can download multiple TikTok videos by entering the path to a text file containing the TikTok URLs."
+    echo -e "\e[1mAvatar Mode\e[0m"
+    echo -e "  In avatar mode, you can download the profile picture of a TikTok user by entering the TikTok username."
+    echo ""
+
+    echo "In all modes you can enter an output directory for the downloaded videos. If you don't enter anything, the default directory will be used (if set)."
+    echo "In all prompts you can enter 'q', 'quit' or 'exit' to exit the program. Enter 'b' or 'back' to go back to the main menu."
+
+    echo ""
+
+    # run the function again
+    main_menu
+
+}
 
 ### Main code
 
-# ask the user to enter an output directory
-echo -e "\n\e[1;35mEnter output directory: \e[0m"
-read -rep $'\e[1;35m> \e[0m' -i "$default_folder" output_folder
+echo -e "\e[1;35mWelcome to the TikTok Downloader!\e[0m"
 
-# if the input is empty, "q", "quit" or "exit", exit the program
-if [[ $output_folder == "" ]] || [[ $output_folder == "exit" ]] || [[ $output_folder == "quit" ]] || [[ $output_folder == "q" ]]
+# check if yt-dlp is installed
+if [ ! command -v yt-dlp &> /dev/null ]
 then
-    exit 0
-fi
-
-# if the input isn't a directory, print an error message and exit the program
-if [[ ! -d $output_folder ]]
-then
-    echo -e "\e[1;31mError: The path must be a directory!\e[0m"
+    echo -e "\e[1;31mError: yt-dlp is not installed!\e[0m"
+    echo -e "\e[1;31mPlease install yt-dlp before using this script!\e[0m"
     echo ""
     exit 1
 fi
 
-# show a selection menu with the options "single mode" "batch mode" and save the user input in the variable mode
-echo -e "\n\e[1;35mWhich mode do you want to use?\e[0m"
-
-modeoptions=("Single Mode" "Batch Mode" "Exit")
-select_option "${modeoptions[@]}"
-modechoice=$?
-
-if [[ "${modeoptions[$modechoice]}" == "Single Mode" ]]
-then
-	single_mode
-elif [[ "${modeoptions[$modechoice]}" == "Batch Mode" ]]
-then
-	batch_mode
-elif [[ "${modeoptions[$modechoice]}" == "Exit" ]]
-then
-    exit 0
-fi
+main_menu
 
 
 exit 0
