@@ -461,6 +461,14 @@ then
     exit 1
 fi
 
+# if the OS is macOS and ggrep is not installed, print a warning
+if [[ $OSTYPE == "darwin"* ]] && [ ! command -v ggrep &> /dev/null ]
+then
+    echo -e "\e[1;33mWarning: ggrep is not installed!\e[0m"
+    echo -e "\e[1;33mAvatar Mode won't work, but you can use the other modes.\e[0m"
+    echo ""
+fi
+
 main_menu
 
 
