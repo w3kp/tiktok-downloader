@@ -1,5 +1,7 @@
 # TikTok Downloader
 
+[tiktok-downloader](https://raw.githubusercontent.com/anga83/tiktok-downloader/main/screenshot.png)
+
 ## Description
 
 This bash script allows you to download TikTok videos both one by one and in batch mode. It uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for downloading, which is the only external dependency. If downloading fails, check if [yt-dlp](https://github.com/yt-dlp/yt-dlp) is installed and up-to-date.
