@@ -10,6 +10,7 @@ The script is confirmed working on macOS[^1], but it should run on all plattform
 
 - "single mode": Enter a TikTok video URL and download it to the chosen directory.
 - "batch mode": Paste all video URLs you want to download inside a txt file (one video per line) and tell the script the path to that txt file. (Depending on the OS and other circumstances it may be a good idea to end the text file with an empty line to make sure the last URL gets read successfully.
+- Either way, the downloaded videos will be named as `<user name>_<video id>.mp4`, which is way more clean than yt-dlp's standard output pattern.
 - If you always want to downlaod the videos to the same directory, you can point the variable `default_folder` to it and the script will suggest that folder every time you launch it and all you need to do is to confirm with Enter.
 
 ## Installation
