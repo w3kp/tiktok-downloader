@@ -6,7 +6,7 @@
 
 This bash script allows you to download TikTok videos both one by one and in batch mode. You can also get the profile picture of a given user in the highest resolution available.
 
-It uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for downloading, which is the only external dependency. If downloading fails, check if [yt-dlp](https://github.com/yt-dlp/yt-dlp) is installed and up-to-date.
+It uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for downloading, which is the only external dependency[^1]. If downloading fails, check if [yt-dlp](https://github.com/yt-dlp/yt-dlp) is installed and up-to-date.
 
 The script is confirmed working on macOS[^1], but it should run on all platforms with bash and yt-dlp installed.
 
