@@ -277,7 +277,7 @@ then
 fi
 
 # show a selection menu with the options "single mode" "batch mode" and save the user input in the variable mode
-echo -e "\n\e[1;35mWitch mode do you want to use?\e[0m"
+echo -e "\n\e[1;35mWhich mode do you want to use?\e[0m"
 
 modeoptions=("Single Mode" "Batch Mode" "Exit")
 select_option "${modeoptions[@]}"
