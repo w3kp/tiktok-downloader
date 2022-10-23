@@ -1,6 +1,6 @@
 # TikTok Downloader
 
-![tiktok-downloader](https://raw.githubusercontent.com/anga83/tiktok-downloader/main/screenshot.png)
+![tiktok-downloader](https://carbon.now.sh/?bg=rgba%28121%2C72%2C185%2C1%29&t=seti&wt=none&l=auto&width=680&ds=false&dsyoff=20px&dsblur=68px&wc=true&wa=true&pv=13px&ph=26px&ln=false&fl=1&fm=Fira+Code&fs=14px&lh=143%25&si=false&es=2x&wm=false&code=%2524%2520.%252Ftiktok-downloader%250A%250AEnter%2520output%2520directory%253A%2520%250A%253E%2520%252FUsers%252Fusername%252FDownloads%250A%250AWhich%2520mode%2520do%2520you%2520want%2520to%2520use%253F%250A%2520%2520%253E%2520Single%2520Mode%2520%250A%2520%2520%2520%2520Batch%2520Mode%2520%250A%2520%2520%2520%2520Exit%2520%250A%250A%250AEnter%2520URL%253A%2520https%253A%252F%252Fwww.tiktok.com%252F%2540olivertree%252Fvideo%252F7152944917373865258%250A%2520%2520Username%253A%2520olivertree%250A%2520%2520Video%2520ID%253A%25207152944917373865258%250A%2520%2520Output%2520File%253A%2520olivertree_7152944917373865258.mp4)
 
 ## Description
 
