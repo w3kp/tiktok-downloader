@@ -33,4 +33,3 @@ The user can select which mode they want to use via a fancy select menu I found 
 
 
 [^1]: macOS now uses zsh as default, so the installed bash version is pretty outdated. It may or may not work (untested). You may want to update it via [Homebrew](https://formulae.brew.sh/formula/bash). macOS users also need to install GNU grep via [Homebrew](https://formulae.brew.sh/formula/grep), otherwise "Avatar Mode" won't work.
-
