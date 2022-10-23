@@ -29,7 +29,7 @@ If you don't already have it installed you also need to install [yt-dlp](https:/
 
 # Acknowledgements
 
-The user can select which mode they want to use via a fancy select menu I found on [StackExchange](https://unix.stackexchange.com/questions/146570/arrow-key-enter-menu).
+The user can select which mode they want to use via a fancy select menu I found on [StackExchange](https://unix.stackexchange.com/questions/146570/arrow-key-enter-menu). The sreenshot above was created with [Carbon](https://carbon.now.sh).
 
 
 [^1]: macOS now uses zsh as default, so the installed bash version is pretty outdated. It may or may not work (untested). You may want to update it via [Homebrew](https://formulae.brew.sh/formula/bash). macOS users also need to install GNU grep via [Homebrew](https://formulae.brew.sh/formula/grep), otherwise "Avatar Mode" won't work.
