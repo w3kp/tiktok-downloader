@@ -10,8 +10,9 @@ The script is confirmed working on macOS[^1], but it should run on all platforms
 
 ## Features
 
-- "single mode": Enter a TikTok video URL and download it to the chosen directory.
-- "batch mode": Paste all video URLs you want to download inside a txt file (one video per line) and tell the script the path to that txt file. (Depending on the OS and other circumstances it may be a good idea to end the text file with an empty line to make sure the last URL gets read successfully.
+- **Single Mode**: <br />Enter a TikTok video URL and download it to the chosen directory.
+- **Batch Mode**: <br />Paste all video URLs you want to download inside a txt file (one video per line) and tell the script the path to that txt file. (Depending on the OS and other circumstances it may be a good idea to end the text file with an empty line to make sure the last URL gets read successfully.
+- **Avatar Mode**: <br />Enter a TikTok username or the profile URL to download the profile picture of that channel in the highest resolution available.
 - Either way, the downloaded videos will be named as `<user name>_<video id>.mp4`, which is way cleaner than yt-dlp's standard output pattern.
 - If you always want to download the videos to the same directory, you can point the variable `default_folder` to it and the script will suggest that folder every time you launch it and all you need to do is to confirm with the enter key.
 
@@ -29,5 +30,5 @@ If you don't already have it installed you also need to install [yt-dlp](https:/
 The user can select which mode they want to use via a fancy select menu I found on [StackExchange](https://unix.stackexchange.com/questions/146570/arrow-key-enter-menu).
 
 
-[^1]: macOS now uses zsh as default, so the installed bash version is pretty outdated. It may or may not work (untested). You may want to update it via [Homebrew](https://formulae.brew.sh/formula/bash). 
+[^1]: macOS now uses zsh as default, so the installed bash version is pretty outdated. It may or may not work (untested). You may want to update it via [Homebrew](https://formulae.brew.sh/formula/bash). macOS users also need to install GNU grep via [Homebrew](https://formulae.brew.sh/formula/grep), otherwise "Avatar Mode" won't work.
 
