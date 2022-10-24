@@ -33,4 +33,4 @@ The user can select which mode they want to use via a fancy selection menu I fou
 The sreenshot above was created with [Carbon](https://carbon.now.sh).
 
 
-[^1]: macOS now uses zsh as default shell and hasn't updated Bash for ages. The script should automatically fallback to a "classic" selection menu, but other issues may still arise. An update is available via [Homebrew](https://formulae.brew.sh/formula/bash). macOS users also need to install GNU grep via [Homebrew](https://formulae.brew.sh/formula/grep), otherwise "Avatar Mode" won't work.
+[^1]: macOS now uses zsh as default shell and hasn't updated Bash for ages. The script should automatically fallback to a "classic" selection menu, but other issues may still arise. You may update Bash via [Homebrew](https://formulae.brew.sh/formula/bash). <br />macOS users also need to install GNU grep via [Homebrew](https://formulae.brew.sh/formula/grep), otherwise "Avatar Mode" won't work.
