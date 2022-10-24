@@ -4,11 +4,11 @@
 
 ## Description
 
-This bash script allows you to download TikTok videos both one by one and in batch mode. You can also get the profile picture of a given user in the highest resolution available.
+This Bash script allows you to download TikTok videos both one by one and in batch mode. You can also get the profile picture of a given user in the highest resolution available. The downloaded videos won't contain a watermark.
 
-It uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for downloading, which is the only external dependency[^1]. If downloading fails, check if [yt-dlp](https://github.com/yt-dlp/yt-dlp) is installed and up-to-date.
+Underneath the script uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for downloading, which is the only external dependency[^1]. If downloading fails, check if [yt-dlp](https://github.com/yt-dlp/yt-dlp) is installed and up-to-date.
 
-The script is confirmed working on macOS[^1], but it should run on all platforms with bash and yt-dlp installed.
+The script is confirmed working on macOS[^1], but it should run on all platforms with Bash and yt-dlp installed.
 
 ## Features
 
@@ -20,9 +20,9 @@ The script is confirmed working on macOS[^1], but it should run on all platforms
 
 ## Installation
 
-Windows users need to use Cygwin or WSL to run bash scripts. Most Linux distributions and macOS[^1] should have bash already installed.
+Windows users need to use Cygwin or WSL to run Bash scripts. Most Linux distributions and macOS[^1] should have Bash already installed.
 
-Simply download [tiktok-downloader.sh](https://raw.githubusercontent.com/anga83/tiktok-downloader/main/tiktok-downloader.sh) from the files above and save it in a convenient place. Like all bash scripts, the file has to be marked as executable. To do this, open a terminal window and paste `chmod +x /path/to/tiktok-downloader.sh`. Once that is done, you can double-click it to run.
+Simply download [tiktok-downloader.sh](https://raw.githubusercontent.com/anga83/tiktok-downloader/main/tiktok-downloader.sh) from the files above and save it in a convenient place. Like all Bash scripts, the file has to be marked as executable. To do this, open a terminal window and paste `chmod +x /path/to/tiktok-downloader.sh`. Once that is done, you can double-click it to run.
 
 If you don't already have it installed you also need to install [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 
