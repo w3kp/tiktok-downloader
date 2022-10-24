@@ -5,6 +5,7 @@
 # In "Avatar Mode" the script downloads the profile picture of a TikTok channel in the highest resolution available.
 # In "Restore Mode" the script tries to (re)download videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4
 
+# Version 1.4 (2022-10-24) - bug fixes
 # Version 1.3 (2022-10-24) - added "Restore Mode" (experimental)
 # Version 1.2 (2022-10-24) - legacy mode for Bash versions < 4.2, check if file already exists before downloading it, check for outdated yt-dlp version
 # Version 1.1 (2022-10-23) - added "Avatar Mode"
@@ -16,13 +17,13 @@
 ### Variables:
 
 output_folder=""
-default_folder="" # set here your default download folder (optional)
+default_folder="/Users/andreas/Downloads/_x/WA/TiktokDownloader-main/downloads" # set here your default download folder (optional)
 
 legacy_mode="false" # set to "true" if you can't use the interactive selection menu or the script won't run at all in your environment
 
 
 # handle keyboard interrupt (CTRL+C)
-trap "echo -e '\n\e[1;31m\u26A0 Process aborted by user!\e[0m\n'; exit 1;" INT SIGINT
+trap "echo -e '\n\033[1;31m\u26A0 Process aborted by user!\033[0m\n'; exit 1;" INT SIGINT
 
 ### Functions
 
@@ -39,7 +40,7 @@ function select_option {
     cursor_to()        { printf "$ESC[$1;${2:-1}H"; }
     print_option()     { printf "   $1 "; }
     print_selected()   { printf "  $ESC[7m $1 $ESC[27m"; }
-    get_cursor_row()   { IFS=';' read -sdR -p $'\E[6n' ROW COL; echo ${ROW#*[}; }
+    get_cursor_row()   { IFS=';' read -sdR -p $'\033[6n' ROW COL; echo ${ROW#*[}; }
     key_input()        { read -s -n3 key 2>/dev/null >&2
                          if [[ $key = $ESC[A ]]; then echo up;    fi
                          if [[ $key = $ESC[B ]]; then echo down;  fi
@@ -102,7 +103,7 @@ function single_mode() {
     echo ""
 
     # ask the user for the URL
-    read -rep $'\e[1;35mEnter URL: \e[0m' url
+    read -rep $'\033[1;35mEnter URL: \033[0m' url
 
     # if the input is empty, "q", "quit" or "exit", exit the program
     if [[ $url == "" ]] || [[ $url == "exit" ]] || [[ $url == "quit" ]] || [[ $url == "q" ]]
@@ -178,7 +179,7 @@ function single_mode() {
         if [[ ! -f "$output_folder/$output_name" ]]
         then 
             # if no, print an error message
-            echo -e "\e[1;91m  Download failed!\e[0m"
+            echo -e "\033[1;91m  Download failed!\033[0m"
         fi
 
     # run the function again
@@ -194,8 +195,8 @@ function batch_mode() {
     total_videos=1
 
     # ask the user to enter the path to the file
-    echo -e "\n\e[1;35mEnter the path to a text file with all links:\e[0m"
-    read -rep $'\e[1;35m> \e[0m' file_path
+    echo -e "\n\033[1;35mEnter the path to a text file with all links:\033[0m"
+    read -rep $'\033[1;35m> \033[0m' file_path
 
     # if the input is empty, "q", "quit" or "exit", exit the program
     if [[ $file_path == "" ]] || [[ $file_path == "exit" ]] || [[ $file_path == "quit" ]] || [[ $file_path == "q" ]]
@@ -214,7 +215,7 @@ function batch_mode() {
     # if the input isn't a txt file, print an error message and restart the function
     if [[ ! $file_path == *.txt ]]
     then
-        echo -e "\e[1;91mError: The file must be a .txt file!\e[0m"
+        echo -e "\033[1;91mError: The file must be a .txt file!\033[0m"
         echo ""
         batch_mode
     fi
@@ -222,7 +223,7 @@ function batch_mode() {
     # if the input doesn't exist, print an error message and restart the function
     if [[ ! -f "$file_path" ]]
     then
-        echo -e "\e[1;91mError: The file doesn't exist!\e[0m"
+        echo -e "\033[1;91mError: The file doesn't exist!\033[0m"
         echo ""
         batch_mode
     fi
@@ -314,7 +315,7 @@ function batch_mode() {
         then
 
             # if no, print an error message
-            echo -e "\e[1;91m  Download failed!\e[0m"
+            echo -e "\033[1;91m  Download failed!\033[0m"
         fi
 
         # increase the current video number by 1
@@ -344,8 +345,8 @@ function restore_mode() {
     total_videos=1
 
     # ask the user to enter the path to the file
-    echo -e "\n\e[1;35mEnter the path to a text file with all links:\e[0m"
-    read -rep $'\e[1;35m> \e[0m' file_path
+    echo -e "\n\033[1;35mEnter the path to a text file with all links:\033[0m"
+    read -rep $'\033[1;35m> \033[0m' file_path
 
     # if the input is empty, "q", "quit" or "exit", exit the program
     if [[ $file_path == "" ]] || [[ $file_path == "exit" ]] || [[ $file_path == "quit" ]] || [[ $file_path == "q" ]]
@@ -364,7 +365,7 @@ function restore_mode() {
     # if the input isn't a txt file, print an error message and restart the function
     if [[ ! $file_path == *.txt ]]
     then
-        echo -e "\e[1;91mError: The file must be a .txt file!\e[0m"
+        echo -e "\033[1;91mError: The file must be a .txt file!\033[0m"
         echo ""
         batch_mode
     fi
@@ -372,7 +373,7 @@ function restore_mode() {
     # if the input doesn't exist, print an error message and restart the function
     if [[ ! -f "$file_path" ]]
     then
-        echo -e "\e[1;91mError: The file doesn't exist!\e[0m"
+        echo -e "\033[1;91mError: The file doesn't exist!\033[0m"
         echo ""
         batch_mode
     fi
@@ -398,8 +399,8 @@ function restore_mode() {
         # print an empty line
         echo ""
 
-        # check if the line is in the correct format: <any charaters>_<bunch of numbers>.mp4
-        if [[ $line =~ ^[a-zA-Z0-9_]+\.mp4$ ]]
+        # check if the line is in the correct format: <a-z, A-Z, 0-9, .>_<bunch of numbers>.mp4
+        if [[ ! $line =~ ^[a-zA-Z0-9.]*_[0-9]*.mp4$ ]]
         then
 
             # get the username and video id from the line
@@ -415,7 +416,7 @@ function restore_mode() {
         else
 
             # if the line is in the wrong format, print an error message
-            echo -e "\e[1;91mError: The line \"$line\" is in the wrong format!\e[0m"
+            echo -e "\033[1;91mError: The line \"$line\" is in the wrong format!\033[0m"
 
             continue
 
@@ -461,13 +462,13 @@ function restore_mode() {
         then
 
             # if yes, print an error message
-            echo -e "\e[1;91m  Video is not/no longer available.\e[0m"
+            echo -e "\033[1;91m  Video is not/no longer available.\033[0m"
 
         elif [[ $error_message == *"Unable to find video in feed"* ]]
         then
 
             # if yes, print an error message
-            echo -e "\e[1;91m  Download failed! Check if video is still online or retry later.\e[0m"
+            echo -e "\033[1;91m  Download failed! Check if video is still online or retry later.\033[0m"
 
         else
 
@@ -476,7 +477,7 @@ function restore_mode() {
             then
 
                 # if no, print an error message
-                echo -e "\e[1;91m  Download failed!\e[0m"
+                echo -e "\033[1;91m  Download failed!\033[0m"
             fi
 
         fi
@@ -509,8 +510,8 @@ function avatar_mode() {
 
 
     # ask user for TikTok username
-    echo -e "\n\e[1;35mEnter TikTok username or profile URL: \e[0m"
-    read -rep $'\e[1;35m> \e[0m' username
+    echo -e "\n\033[1;35mEnter TikTok username or profile URL: \033[0m"
+    read -rep $'\033[1;35m> \033[0m' username
 
     # if the input is empty, "q", "quit" or "exit", exit the program
     if [[ $username == "" ]] || [[ $username == "exit" ]] || [[ $username == "quit" ]] || [[ $username == "q" ]]
@@ -575,7 +576,7 @@ function avatar_mode() {
     if [[ ! -f "$output_folder/$username.jpg" ]]
     then
         # if no, print an error message
-        echo -e "\e[1;91mDownload failed!\e[0m"
+        echo -e "\033[1;91mDownload failed!\033[0m"
     fi
 
     # delete the temporary file
@@ -599,7 +600,7 @@ function main_menu() {
     then
 
        # show a selection menu with the options "single mode" "batch mode" and save the user input in the variable mode
-        echo -e "\n\e[1;35mWhich mode do you want to use?\e[0m"
+        echo -e "\n\033[1;35mWhich mode do you want to use?\033[0m"
 
         modeoptions=("Single Mode" "Batch Mode" "Avatar Mode" "Restore Mode" "Help" "Exit")
         select_option "${modeoptions[@]}"
@@ -619,7 +620,7 @@ function main_menu() {
             avatar_mode
         elif [[ "${modeoptions[$modechoice]}" == "Restore Mode" ]]
         then
-            echo -e "\e[35m\nNote: Restore Mode is used to (re)download TikToks based on the file name. Existing files will be overwritten. The input is a text file with entries in the following format: <user name>_<video id>.mp4\n\e[0m"
+            echo -e "\033[35m\nNote: Restore Mode is used to (re)download TikToks based on the file name. Existing files will be overwritten. The input is a text file with entries in the following format: <user name>_<video id>.mp4\n\033[0m"
 
             ask_for_output_folder
             restore_mode
@@ -634,16 +635,16 @@ function main_menu() {
     else
 
         # print a select menu witht he options "Single Mode" "Batch Mode" "Avatar Mode" "Help" "Exit"
-        echo -e "\n\e[1;35mWhich mode do you want to use?\e[0m"
-        echo -e "\e[1;35m1) Single Mode\e[0m"
-        echo -e "\e[1;35m2) Batch Mode\e[0m"
-        echo -e "\e[1;35m3) Avatar Mode\e[0m"
-        echo -e "\e[1;35m4) Restore Mode\e[0m"
-        echo -e "\e[1;35m5) Help\e[0m"
-        echo -e "\e[1;35m6) Exit\e[0m"
+        echo -e "\n\033[1;35mWhich mode do you want to use?\033[0m"
+        echo -e "\033[1;35m1) Single Mode\033[0m"
+        echo -e "\033[1;35m2) Batch Mode\033[0m"
+        echo -e "\033[1;35m3) Avatar Mode\033[0m"
+        echo -e "\033[1;35m4) Restore Mode\033[0m"
+        echo -e "\033[1;35m5) Help\033[0m"
+        echo -e "\033[1;35m6) Exit\033[0m"
 
         # read the user input and save it to the variable mode
-        read -rep $'\e[1;35m> \e[0m' mode
+        read -rep $'\033[1;35m> \033[0m' mode
 
         # if the input is empty, "q", "quit" or "exit", exit the program
         if [[ $mode == "" ]] || [[ $mode == "exit" ]] || [[ $mode == "quit" ]] || [[ $mode == "q" ]]
@@ -676,7 +677,7 @@ function main_menu() {
         # if the input is "4", "restore mode" or "restore", run the restore mode function
         if [[ $mode == "4" ]] || [[ $mode == "restore mode" ]] || [[ $mode == "restore" ]]
         then        
-            echo -e "\e[35m\nNote: Restore Mode is used to (re)download TikToks based on the file name. Existing files will be overwritten. The input is a text file with entries in the following format: <user name>_<video id>.mp4\n\e[0m"
+            echo -e "\033[35m\nNote: Restore Mode is used to (re)download TikToks based on the file name. Existing files will be overwritten. The input is a text file with entries in the following format: <user name>_<video id>.mp4\n\033[0m"
 
             ask_for_output_folder
             restore_mode
@@ -705,8 +706,8 @@ function main_menu() {
 function ask_for_output_folder() {
 
     # ask the user to enter an output directory
-    echo -e "\n\e[1;35mEnter output directory: \e[0m"
-    read -rep $'\e[1;35m> \e[0m' -i "$default_folder" output_folder
+    echo -e "\n\033[1;35mEnter output directory: \033[0m"
+    read -rep $'\033[1;35m> \033[0m' -i "$default_folder" output_folder
 
     # if the input is empty, "q", "quit" or "exit", exit the program
     if [[ $output_folder == "" ]] || [[ $output_folder == "exit" ]] || [[ $output_folder == "quit" ]] || [[ $output_folder == "q" ]]
@@ -723,7 +724,7 @@ function ask_for_output_folder() {
     # if the input isn't a directory, print an error message and exit the program
     if [[ ! -d $output_folder ]]
     then
-        echo -e "\e[1;91mError: The entered path doesn't exist or isn't a directory!\e[0m"
+        echo -e "\033[1;91mError: The entered path doesn't exist or isn't a directory!\033[0m"
         echo ""
         exit 1
     fi
@@ -733,16 +734,16 @@ function ask_for_output_folder() {
 ## function: help screen
 function help_screen() {
 
-    echo -e "\n\e[1mHelp\e[0m"
-    echo -e "\e[1m====\e[0m"
+    echo -e "\n\033[1mHelp\033[0m"
+    echo -e "\033[1m====\033[0m"
     echo ""
-    echo -e "\e[1mSingle Mode\e[0m"
+    echo -e "\033[1mSingle Mode\033[0m"
     echo -e " In single mode, you can download a single TikTok video by entering the TikTok URL."
-    echo -e "\e[1mBatch Mode\e[0m"
+    echo -e "\033[1mBatch Mode\033[0m"
     echo -e " In batch mode, you can download multiple TikTok videos by entering the path to a text file containing the TikTok URLs."
-    echo -e "\e[1mAvatar Mode\e[0m"
+    echo -e "\033[1mAvatar Mode\033[0m"
     echo -e " In avatar mode, you can download the profile picture of a TikTok user by entering the TikTok username."
-    echo -e "\e[1mRestore Mode\e[0m"
+    echo -e "\033[1mRestore Mode\033[0m"
     echo -e " In restore mode, you can (re)download TikTok videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4"
     echo ""
 
@@ -752,6 +753,7 @@ function help_screen() {
 
     echo ""
 
+    echo "Get the latest version GitHub:"
     echo "https://github.com/anga83/tiktok-downloader"
 
     echo ""
@@ -763,13 +765,13 @@ function help_screen() {
 
 ### Main code
 
-echo -e "\e[1;35mWelcome to the TikTok Downloader!\e[0m"
+echo -e "\033[1;35mWelcome to the TikTok Downloader!\033[0m"
 
 # check if yt-dlp is installed
 if ! command -v yt-dlp &> /dev/null
 then
-    echo -e "\e[1;91mError: yt-dlp is not installed!\e[0m"
-    echo -e "\e[1;91mPlease install yt-dlp before using this script!\e[0m"
+    echo -e "\033[1;91mError: yt-dlp is not installed!\033[0m"
+    echo -e "\033[1;91mPlease install yt-dlp before using this script!\033[0m"
     echo ""
     exit 1
 fi
@@ -786,8 +788,8 @@ yt_dlp_version=$(yt-dlp --update)
 
 if [[ ! $yt_dlp_version == *"is up to date"* ]]
 then
-    echo -e "\e[1;93mYou have an outdated version of yt-dlp installed.\e[0m"
-    echo -e "\e[1;93mIf you encounter download errors, update yt-dlp and retry again.\e[0m"
+    echo -e "\033[1;93mYou have an outdated version of yt-dlp installed.\033[0m"
+    echo -e "\033[1;93mIf you encounter download errors, update yt-dlp and retry again.\033[0m"
     echo ""
 fi
 
@@ -798,8 +800,8 @@ then
     if ! command -v ggrep &> /dev/null 
     then
 
-        echo -e "\e[1;93mWarning: GNU grep is not installed!\e[0m"
-        echo -e "\e[1;93mAvatar Mode won't work, but you can use the other modes.\e[0m"
+        echo -e "\033[1;93mWarning: GNU grep is not installed!\033[0m"
+        echo -e "\033[1;93mAvatar Mode won't work, but you can use the other modes.\033[0m"
         echo ""
 
     fi
