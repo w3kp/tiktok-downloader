@@ -5,7 +5,7 @@
 # In "Avatar Mode" the script downloads the profile picture of a TikTok channel in the highest resolution available.
 # In "Restore Mode" the script tries to (re)download videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4
 
-# Version 1.4 (2022-10-24) - bug fixes
+# Version 1.4 (2022-10-24) - bug fixes and compatibility improvements 
 # Version 1.3 (2022-10-24) - added "Restore Mode" (experimental)
 # Version 1.2 (2022-10-24) - legacy mode for Bash versions < 4.2, check if file already exists before downloading it, check for outdated yt-dlp version
 # Version 1.1 (2022-10-23) - added "Avatar Mode"
