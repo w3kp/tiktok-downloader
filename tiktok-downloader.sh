@@ -3,7 +3,9 @@
 # This script allows you to use yt-dlp to download a TikTok video.
 # The script has both a mode for downloading a single video and a mode to download all videos passed to the script via a text file.
 # In "Avatar Mode" the script downloads the profile picture of a TikTok channel in the highest resolution available.
+# In "Restore Mode" the script tries to (re)download videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4
 
+# Version 1.3 (2022-10-24) - added "Restore Mode" (experimental)
 # Version 1.2 (2022-10-24) - legacy mode for Bash versions < 4.2, check if file already exists before downloading it, check for outdated yt-dlp version
 # Version 1.1 (2022-10-23) - added "Avatar Mode"
 # Version 1.0 (2022-10-23) - initial version
@@ -16,8 +18,11 @@
 output_folder=""
 default_folder="" # set here your default download folder (optional)
 
-legacy_mode="false" # set to "true" if you can't use the interactive select menu or the script won't run at all in your environment
+legacy_mode="false" # set to "true" if you can't use the interactive selection menu or the script won't run at all in your environment
 
+
+# handle keyboard interrupt (CTRL+C)
+trap "echo -e '\n\e[1;31m\u26A0 Process aborted by user!\e[0m\n'; exit 1;" INT SIGINT
 
 ### Functions
 
@@ -192,14 +197,6 @@ function batch_mode() {
     echo -e "\n\e[1;35mEnter the path to a text file with all links:\e[0m"
     read -rep $'\e[1;35m> \e[0m' file_path
 
-    # if the input doesn't exist, print an error message and restart the function
-    if [[ ! -f "$file_path" ]]
-    then
-        echo -e "\e[1;91mError: The file doesn't exist!\e[0m"
-        echo ""
-        batch_mode
-    fi
-
     # if the input is empty, "q", "quit" or "exit", exit the program
     if [[ $file_path == "" ]] || [[ $file_path == "exit" ]] || [[ $file_path == "quit" ]] || [[ $file_path == "q" ]]
     then
@@ -222,8 +219,13 @@ function batch_mode() {
         batch_mode
     fi
 
-    # strip spaces from the file path
-    file_path=$(echo "$file_path" | tr -d '[:space:]')
+    # if the input doesn't exist, print an error message and restart the function
+    if [[ ! -f "$file_path" ]]
+    then
+        echo -e "\e[1;91mError: The file doesn't exist!\e[0m"
+        echo ""
+        batch_mode
+    fi
 
     # get the number of non-empty lines in the file
     total_videos=$(grep -c . "$file_path")
@@ -273,6 +275,9 @@ function batch_mode() {
         # create a new variable output_name with the following pattern: username_videoid.mp4
         output_name="${username}_${videoid}.mp4"
 
+        # print the videoname
+        echo "  Output File: $output_name"
+
         # check if the video already exists
         if [[ -f "$output_folder/$output_name" ]]
         then
@@ -299,9 +304,6 @@ function batch_mode() {
 
             fi
         fi
-
-        # print the videoname
-        echo "  Output File: $output_name"
 
         # download the video using yt-dlp
         yt-dlp -q "$url" -o "$output_folder/$output_name"
@@ -331,6 +333,170 @@ function batch_mode() {
 
     # run the function again
     batch_mode
+
+}
+
+## function: (batch) restore mode
+function restore_mode() {
+
+    file_path=""
+    current_video=1
+    total_videos=1
+
+    # ask the user to enter the path to the file
+    echo -e "\n\e[1;35mEnter the path to a text file with all links:\e[0m"
+    read -rep $'\e[1;35m> \e[0m' file_path
+
+    # if the input is empty, "q", "quit" or "exit", exit the program
+    if [[ $file_path == "" ]] || [[ $file_path == "exit" ]] || [[ $file_path == "quit" ]] || [[ $file_path == "q" ]]
+    then
+        echo ""
+        exit 0
+    fi
+
+    # if the input is "b" or "back", go back to the main menu
+    if [[ $file_path == "b" ]] || [[ $file_path == "back" ]]
+    then
+        echo ""
+        main_menu
+    fi
+
+    # if the input isn't a txt file, print an error message and restart the function
+    if [[ ! $file_path == *.txt ]]
+    then
+        echo -e "\e[1;91mError: The file must be a .txt file!\e[0m"
+        echo ""
+        batch_mode
+    fi
+
+    # if the input doesn't exist, print an error message and restart the function
+    if [[ ! -f "$file_path" ]]
+    then
+        echo -e "\e[1;91mError: The file doesn't exist!\e[0m"
+        echo ""
+        batch_mode
+    fi
+
+    # get the number of non-empty lines in the file
+    total_videos=$(grep -c . "$file_path")
+
+    # for each line in the file
+    while IFS= read -r line
+    do
+
+        url=""
+        username=""
+        videoid=""
+        output_name=""
+        error_message=""
+
+        # if the line is empty, skip it
+        if [[ $line == "" ]]; then
+            continue
+        fi
+
+        # print an empty line
+        echo ""
+
+        # check if the line is in the correct format: <any charaters>_<bunch of numbers>.mp4
+        if [[ $line =~ ^[a-zA-Z0-9_]+\.mp4$ ]]
+        then
+
+            # get the username and video id from the line
+            username=$(echo "$line" | cut -d'_' -f1)
+            videoid=$(echo "$line" | cut -d'_' -f2 | cut -d'.' -f1)
+
+            # create the url
+            url="https://www.tiktok.com/@$username/video/$videoid"
+
+            # create the output name (should result in the same as the input)
+            output_name="$username"_"$videoid".mp4
+
+        else
+
+            # if the line is in the wrong format, print an error message
+            echo -e "\e[1;91mError: The line \"$line\" is in the wrong format!\e[0m"
+
+            continue
+
+        fi
+
+
+        # print the current video number and the total number of videos
+        echo "  Video $current_video of $total_videos"
+
+        # from the variable videourl extract the part between "@" and "/" and save it in the variable username
+        username=$(echo "$url" | cut -d'@' -f2 | cut -d'/' -f1)
+
+        # print the username
+        echo "  Username: $username"
+
+        # from the varable videourl extract the part after the last / and save it in the variable videoid
+        videoid=$(echo "$url" | rev | cut -d'/' -f1 | rev)
+
+        # print the videoid
+        echo "  Video ID: $videoid"
+
+        # create a new variable output_name with the following pattern: username_videoid.mp4
+        output_name="${username}_${videoid}.mp4"
+
+        # print the videoname
+        echo "  Output File: $output_name"
+
+         # check if the video already exists
+        if [[ -f "$output_folder/$output_name" ]]
+        then
+
+            rm "$output_folder/$output_name"
+
+            echo "  Existing file deleted. Retry downloading file..."
+
+        fi
+
+        # download the video using yt-dlp, catch the error message and save it in the variable error_message
+        error_message=$(yt-dlp -q "$url" -o "$output_folder/$output_name" 2>&1)
+
+        # check if the error message contains "Unable to find video in feed"
+        if [[ $error_message == *"HTTP Error 404"* ]]
+        then
+
+            # if yes, print an error message
+            echo -e "\e[1;91m  Video is not/no longer available.\e[0m"
+
+        elif [[ $error_message == *"Unable to find video in feed"* ]]
+        then
+
+            # if yes, print an error message
+            echo -e "\e[1;91m  Download failed! Check if video is still online or retry later.\e[0m"
+
+        else
+
+            # check if the video was downloaded successfully
+            if [[ ! -f "$output_folder/$output_name" ]]
+            then
+
+                # if no, print an error message
+                echo -e "\e[1;91m  Download failed!\e[0m"
+            fi
+
+        fi
+
+        # increase the current video number by 1
+        current_video=$((current_video+1))
+
+        # wait 1 second to prevent rate limiting
+        sleep 1
+
+
+    done < "$file_path"
+
+
+    # print an empty line
+    echo ""
+    
+
+    # run the function again
+    restore_mode
 
 }
 
@@ -435,7 +601,7 @@ function main_menu() {
        # show a selection menu with the options "single mode" "batch mode" and save the user input in the variable mode
         echo -e "\n\e[1;35mWhich mode do you want to use?\e[0m"
 
-        modeoptions=("Single Mode" "Batch Mode" "Avatar Mode" "Help" "Exit")
+        modeoptions=("Single Mode" "Batch Mode" "Avatar Mode" "Restore Mode" "Help" "Exit")
         select_option "${modeoptions[@]}"
         modechoice=$?
 
@@ -451,6 +617,12 @@ function main_menu() {
         then
             ask_for_output_folder
             avatar_mode
+        elif [[ "${modeoptions[$modechoice]}" == "Restore Mode" ]]
+        then
+            echo -e "\e[35m\nNote: Restore Mode is used to (re)download TikToks based on the file name. Existing files will be overwritten. The input is a text file with entries in the following format: <user name>_<video id>.mp4\n\e[0m"
+
+            ask_for_output_folder
+            restore_mode
         elif [[ "${modeoptions[$modechoice]}" == "Help" ]]
         then
             help_screen
@@ -466,8 +638,9 @@ function main_menu() {
         echo -e "\e[1;35m1) Single Mode\e[0m"
         echo -e "\e[1;35m2) Batch Mode\e[0m"
         echo -e "\e[1;35m3) Avatar Mode\e[0m"
-        echo -e "\e[1;35m4) Help\e[0m"
-        echo -e "\e[1;35m5) Exit\e[0m"
+        echo -e "\e[1;35m4) Restore Mode\e[0m"
+        echo -e "\e[1;35m5) Help\e[0m"
+        echo -e "\e[1;35m6) Exit\e[0m"
 
         # read the user input and save it to the variable mode
         read -rep $'\e[1;35m> \e[0m' mode
@@ -500,14 +673,23 @@ function main_menu() {
             avatar_mode
         fi
 
-        # if the input is "4", "help" or "h", run the help screen function
-        if [[ $mode == "4" ]] || [[ $mode == "help" ]] || [[ $mode == "h" ]]
+        # if the input is "4", "restore mode" or "restore", run the restore mode function
+        if [[ $mode == "4" ]] || [[ $mode == "restore mode" ]] || [[ $mode == "restore" ]]
+        then        
+            echo -e "\e[35m\nNote: Restore Mode is used to (re)download TikToks based on the file name. Existing files will be overwritten. The input is a text file with entries in the following format: <user name>_<video id>.mp4\n\e[0m"
+
+            ask_for_output_folder
+            restore_mode
+        fi
+
+        # if the input is "5", "help" or "h", run the help screen function
+        if [[ $mode == "5" ]] || [[ $mode == "help" ]] || [[ $mode == "h" ]]
         then
             help_screen
         fi
 
-        # if the input is "5", "exit" or "q", exit the program
-        if [[ $mode == "5" ]] || [[ $mode == "exit" ]] || [[ $mode == "q" ]]
+        # if the input is "6", "exit" or "q", exit the program
+        if [[ $mode == "6" ]] || [[ $mode == "exit" ]] || [[ $mode == "q" ]]
         then
             echo ""
             exit 0
@@ -560,6 +742,8 @@ function help_screen() {
     echo -e " In batch mode, you can download multiple TikTok videos by entering the path to a text file containing the TikTok URLs."
     echo -e "\e[1mAvatar Mode\e[0m"
     echo -e " In avatar mode, you can download the profile picture of a TikTok user by entering the TikTok username."
+    echo -e "\e[1mRestore Mode\e[0m"
+    echo -e " In restore mode, you can (re)download TikTok videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4"
     echo ""
 
     echo "In all modes you can enter an output directory for the downloaded videos. If you don't enter anything, the default directory will be used (if set)."
