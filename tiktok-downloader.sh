@@ -17,7 +17,7 @@
 ### Variables:
 
 output_folder=""
-default_folder="/Users/andreas/Downloads/_x/WA/TiktokDownloader-main/downloads" # set here your default download folder (optional)
+default_folder="" # set here your default download folder (optional)
 
 legacy_mode="false" # set to "true" if you can't use the interactive selection menu or the script won't run at all in your environment
 
