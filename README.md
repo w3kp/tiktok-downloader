@@ -20,7 +20,7 @@ The script is confirmed working on macOS[^1], but it should run on all platforms
 
 ## Installation
 
-Windows users need to use Cygwin or WSL to run Bash scripts. Most Linux distributions and macOS[^1] should have Bash already installed.
+Windows users need to use Cygwin or WSL to run Bash scripts. Most Linux distributions and macOS[^1] should already have Bash installed.
 
 Simply download [tiktok-downloader.sh](https://raw.githubusercontent.com/anga83/tiktok-downloader/main/tiktok-downloader.sh) from the files above and save it in a convenient place. Like all Bash scripts, the file has to be marked as executable. To do this, open a terminal window and paste `chmod +x /path/to/tiktok-downloader.sh`. Once that is done, you can double-click it to run.
 
@@ -33,4 +33,4 @@ The user can select which mode they want to use via a fancy select menu I found 
 The sreenshot above was created with [Carbon](https://carbon.now.sh).
 
 
-[^1]: macOS now uses zsh as default, so the installed bash version is pretty outdated. It may or may not work (untested). You may want to update it via [Homebrew](https://formulae.brew.sh/formula/bash). macOS users also need to install GNU grep via [Homebrew](https://formulae.brew.sh/formula/grep), otherwise "Avatar Mode" won't work.
+[^1]: macOS now uses zsh as default shell and hasn't updated Bash for ages. The script should automatically fallback to a "classic" selection menu, but other issues may still arise. An update is available via [Homebrew](https://formulae.brew.sh/formula/bash). macOS users also need to install GNU grep via [Homebrew](https://formulae.brew.sh/formula/grep), otherwise "Avatar Mode" won't work.
