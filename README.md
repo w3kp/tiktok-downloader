@@ -29,7 +29,7 @@ If you don't already have it installed you also need to install [yt-dlp](https:/
 
 # Acknowledgements
 
-The user can select which mode they want to use via a fancy select menu I found on [StackExchange](https://unix.stackexchange.com/questions/146570/arrow-key-enter-menu).
+The user can select which mode they want to use via a fancy selection menu I found on [StackExchange](https://unix.stackexchange.com/questions/146570/arrow-key-enter-menu).
 The sreenshot above was created with [Carbon](https://carbon.now.sh).
 
 
