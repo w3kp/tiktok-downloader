@@ -175,7 +175,7 @@ function single_mode() {
     fi
 
     # download the video using yt-dlp
-    yt-dlp -q "$url" -o "$output_folder/$output_name" -add-metadata --embed-subs
+    yt-dlp -q "$url" -o "$output_folder/$output_name" --add-metadata --embed-subs
 
     # check if the video was downloaded successfully
         if [[ ! -f "$output_folder/$output_name" ]]
@@ -309,7 +309,7 @@ function batch_mode() {
         fi
 
         # download the video using yt-dlp
-        yt-dlp -q "$url" -o "$output_folder/$output_name" -add-metadata --embed-subs
+        yt-dlp -q "$url" -o "$output_folder/$output_name" --add-metadata --embed-subs
 
 
         # check if the video was downloaded successfully
@@ -457,7 +457,7 @@ function restore_mode() {
         fi
 
         # download the video using yt-dlp, catch the error message and save it in the variable error_message
-        error_message=$(yt-dlp -q "$url" -o "$output_folder/$output_name" -add-metadata --embed-subs 2>&1)
+        error_message=$(yt-dlp -q "$url" -o "$output_folder/$output_name" --add-metadata --embed-subs 2>&1)
 
         # check if the error message contains "Unable to find video in feed"
         if [[ $error_message == *"HTTP Error 404"* ]]
