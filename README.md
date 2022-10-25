@@ -30,7 +30,7 @@ Simply download [tiktok-downloader.sh](https://raw.githubusercontent.com/anga83/
 If you don't already have it installed you also need to install [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 
 
-# Acknowledgements
+## Acknowledgements
 
 The user can select which mode they want to use via a fancy selection menu I found on [StackExchange](https://unix.stackexchange.com/questions/146570/arrow-key-enter-menu).
 The sreenshot above was created with [Carbon](https://carbon.now.sh).
