@@ -5,6 +5,7 @@
 # In "Avatar Mode" the script downloads the profile picture of a TikTok channel in the highest resolution available.
 # In "Restore Mode" the script tries to (re)download videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4
 
+# Version 1.5 (2022-10-25) - embedding video description and URL into the file's metadata, embedding subtitles (if available), check for yt-dlp updates is now optional
 # Version 1.4 (2022-10-24) - bug fixes and compatibility improvements 
 # Version 1.3 (2022-10-24) - added "Restore Mode" (experimental)
 # Version 1.2 (2022-10-24) - legacy mode for Bash versions < 4.2, check if file already exists before downloading it, check for outdated yt-dlp version
@@ -16,10 +17,11 @@
 
 ### Variables:
 
-output_folder=""
-default_folder="" # set here your default download folder (optional)
+output_folder=""        # leave empty
+default_folder=""       # set here your default download folder (optional)
 
-legacy_mode="false" # set to "true" if you can't use the interactive selection menu or the script won't run at all in your environment
+legacy_mode="false"         # set to "true" if you can't use the interactive selection menu or the script won't run at all in your environment
+check_for_updates="true"    # set to "false" if you don't want to check for an update of yt-dlp at startup
 
 
 # handle keyboard interrupt (CTRL+C)
@@ -173,7 +175,7 @@ function single_mode() {
     fi
 
     # download the video using yt-dlp
-    yt-dlp -q "$url" -o "$output_folder/$output_name"
+    yt-dlp -q "$url" -o "$output_folder/$output_name" -add-metadata --embed-subs
 
     # check if the video was downloaded successfully
         if [[ ! -f "$output_folder/$output_name" ]]
@@ -307,7 +309,7 @@ function batch_mode() {
         fi
 
         # download the video using yt-dlp
-        yt-dlp -q "$url" -o "$output_folder/$output_name"
+        yt-dlp -q "$url" -o "$output_folder/$output_name" -add-metadata --embed-subs
 
 
         # check if the video was downloaded successfully
@@ -455,7 +457,7 @@ function restore_mode() {
         fi
 
         # download the video using yt-dlp, catch the error message and save it in the variable error_message
-        error_message=$(yt-dlp -q "$url" -o "$output_folder/$output_name" 2>&1)
+        error_message=$(yt-dlp -q "$url" -o "$output_folder/$output_name" -add-metadata --embed-subs 2>&1)
 
         # check if the error message contains "Unable to find video in feed"
         if [[ $error_message == *"HTTP Error 404"* ]]
@@ -784,13 +786,17 @@ fi
 
 # check if yt-dlp is up to date
 
-yt_dlp_version=$(yt-dlp --update)
-
-if [[ ! $yt_dlp_version == *"is up to date"* ]]
+# if check_for_yt-dlp_updates is set to "true", check if yt-dlp is up to date
+if [[ $check_for_updates == "true" ]]
 then
-    echo -e "\033[1;93mYou have an outdated version of yt-dlp installed.\033[0m"
-    echo -e "\033[1;93mIf you encounter download errors, update yt-dlp and retry again.\033[0m"
-    echo ""
+    yt_dlp_version=$(yt-dlp --update)
+
+    if [[ ! $yt_dlp_version == *"is up to date"* ]]
+    then
+        echo -e "\033[1;93mYou have an outdated version of yt-dlp installed.\033[0m"
+        echo -e "\033[1;93mIf you encounter download errors, update yt-dlp and retry again.\033[0m"
+        echo ""
+    fi
 fi
 
 # if the OS is macOS and ggrep is not installed, print a warning
