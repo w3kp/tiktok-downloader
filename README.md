@@ -1,6 +1,6 @@
 # TikTok Downloader
 
-![tiktok-downloader](https://raw.githubusercontent.com/anga83/tiktok-downloader/7b145ad24d79f44cc34c289a90942dd22cc3fb66/carbon.png)
+![tiktok-downloader](https://raw.githubusercontent.com/anga83/tiktok-downloader/main/screenshot.png)
 
 ## Description
 
