@@ -4,7 +4,7 @@
 
 ## Description
 
-This Bash script allows you to download TikTok videos without watermarks — both one by one and in batch mode. You can also get the profile picture of a given user in the highest resolution available.
+This Bash script allows you to download TikTok videos without watermarks — both one by one and in batch mode. You can also get the profile picture (avatar) of a given user in the highest resolution available.
 
 Underneath the surface, my script uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for downloading, which is the only external dependency[^1]. If downloading fails, check if [yt-dlp](https://github.com/yt-dlp/yt-dlp) is installed and up-to-date.
 
@@ -16,10 +16,9 @@ The script is confirmed working on macOS[^1], but it should run on all platforms
 - **Batch Mode**: <br />Paste all video URLs you want to download inside a txt file (one video per line) and tell the script the path to that txt file. (Depending on the OS and other circumstances it may be a good idea to end the text file with an empty line to make sure the last URL gets read successfully. Lines should be in the following pattern: `https://www.tiktok.com/@<username>/video/<video id>`
 - **Avatar Mode**: <br />Enter a TikTok username or the profile URL to download the profile picture of that channel in the highest resolution available.
 - **Restore Mode** _(experimental)_: <br />Like Batch Mode this mode uses a txt file as input, but this time lines should be formatted like this: `<user name>_<video id>.mp4`. Use it to (re)download TikToks based on the file name, for example if you notice that previously downloaded files are corrupt. The script will translate the file names back to TikTok video URLs and will (re)download them (if still available). Existing files will be overwritten.
-- In all modes the videos will be downloaded without watermarks.
+- In all modes the videos will be downloaded without watermarks. The downloaded videos will be named as `<user name>_<video id>.mp4`, which is way cleaner than yt-dlp's standard output pattern.
 - The video description will be integated in the file's metadata (`description` tag).
 - If available, subtitles will be embedded into the file.
--  In both "Single Mode" and "Batch Mode", the downloaded videos will be named as `<user name>_<video id>.mp4`, which is way cleaner than yt-dlp's standard output pattern.
 - If you always want to download the videos to the same directory, you can point the variable `default_folder` to it and the script will suggest that folder every time you launch it and all you need to do is to confirm with the enter key.
 
 ## Installation
