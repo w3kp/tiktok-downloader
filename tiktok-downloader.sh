@@ -845,12 +845,24 @@ if [[ $(ps -p $$ -o comm=) != *"bash" ]]; then
     # if show_warning_when_shell_is_not_bash is enabled, print a warning, otherwise try to suppress any warning and do the trick without the users' notice
     if [[ $show_warning_when_shell_is_not_bash == "true" ]]
     then
+
+        if [[ ! $(ps -p $$ -o comm=) = *"sh" ]]; then
         
-        echo -e "\033[1;93mWarning: This script must be run under Bash instead of \033[1;91m$(ps -p $$ -o comm=).\033[0m"
-        echo -e "\033[0;93mUsage: ./tiktok-downloader.sh\nSee README for more information.\033[0m"
-        echo ""
-        echo "\033[0;93mTrying to fix this...\033[0m"
-        echo ""
+            echo -e "\033[1;93mWarning: This script must be run under Bash instead of \033[1;91m$(ps -p $$ -o comm=).\033[0m"
+            echo -e "\033[0;93mUsage: ./tiktok-downloader.sh\nSee README for more information.\033[0m"
+            echo ""
+            echo "\033[0;93mTrying to fix this...\033[0m"
+            echo ""
+
+        else
+
+            echo "\033[1;93mWarning: This script must be run under Bash instead of \033[1;91m$(ps -p $$ -o comm=).\033[0m"
+            printf "\033[0;93mUsage: ./tiktok-downloader.sh\nSee README for more information.\033[0m"
+            echo ""
+            printf "\033[0;93mTrying to fix this...\033[0m"
+            echo ""
+
+        fi
 
         pass_error_log="$(ps -p $$ -o comm=)"
 
