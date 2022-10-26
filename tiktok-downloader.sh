@@ -7,7 +7,7 @@
 
 version="1.7"
 
-# Version 1.7 (2022-10-26) - script now preserves the output folder when changing modes, improved visibility on dark terminal window backgrounds, added more environment checks
+# Version 1.7 (2022-10-26) - script now preserves the output folder when changing modes, improved visibility on dark terminal window backgrounds, added more environment checks, added debug information to help screen, improved legacy support (mainly for macOS with built-in bash 3.2)
 # Version 1.6 (2022-10-26) - bugxfies, improved support for Ubuntu/Debian based distributions
 # Version 1.5 (2022-10-25) - embedding video description and URL into the file's metadata, embedding subtitles (if available), check for yt-dlp updates is now optional
 # Version 1.4 (2022-10-24) - bug fixes and compatibility improvements 
@@ -712,13 +712,30 @@ function ask_for_output_folder() {
     echo -e "\n\033[1;95mEnter output directory: \033[0m"
 
 
-    # if ouptut_folder is empty, suggest default_folder
-    # if ouptut_folder is not empty, suggest output_folder
-    if [[ $output_folder == "" ]]
+    # if legacy mode is disabled
+    if [[ $legacy_mode == "false" ]]
     then
-        read -rep $'\033[1;95m> \033[0m' -i "$default_folder" output_folder
+
+        # if ouptut_folder is empty, suggest default_folder
+        # if ouptut_folder is not empty, suggest output_folder
+        if [[ $output_folder == "" ]]
+        then
+            read -rep $'\033[1;95m> \033[0m' -i "$default_folder" output_folder
+        else
+            read -rep $'\033[1;95m> \033[0m' -i "$output_folder" output_folder
+        fi
+
     else
-        read -rep $'\033[1;95m> \033[0m' -i "$output_folder" output_folder
+
+        # if ouptut_folder is empty, suggest default_folder
+        # if ouptut_folder is not empty, suggest output_folder
+        if [[ $output_folder == "" ]]
+        then
+            read -rep $'\033[1;95m> \033[0m' output_folder
+        else
+            read -rep $'\033[1;95m> \033[0m' output_folder
+        fi
+
     fi
 
     # if the input is empty, "q", "quit" or "exit", exit the program
@@ -811,7 +828,7 @@ echo -e "\033[1;95mWelcome to the TikTok Downloader.\033[0m"
 ## perform some checks before starting the main menu
 
 # check under which shell we are running
-if [[ $(ps -p $$ -o comm=) != "bash" ]]; then
+if [[ $(ps -p $$ -o comm=) != *"bash" ]]; then
     echo -e "\033[1;91mError: This script must be run under Bash.\033[0m"
     echo -e "You started it under \033[1;91m$(ps -p $$ -o comm=)\033[0m."
     echo ""
