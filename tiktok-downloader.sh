@@ -403,7 +403,7 @@ function restore_mode() {
         echo ""
 
         # check if the line is in the correct format: <a-z, A-Z, 0-9, .>_<bunch of numbers>.mp4
-        if [[ ! $line =~ ^[a-zA-Z0-9.]*_[0-9]*.mp4$ ]]
+        if [[ $line =~ ^[a-zA-Z0-9.]*_[0-9]*.mp4$ ]]
         then
 
             # get the username and video id from the line
