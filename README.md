@@ -37,6 +37,10 @@ Depending on your operating system, launching the script may differ, but in gene
 - Ubuntu: right click and choose "Run as a Program" (there are tutorials to make double-click work as well)
 - any OS: open a Terminal window, navigate to the script directory and enter `./tiktok-downloader.sh`
 
+Once launched, choose the mode you want to use and the script will assist you through the necessary steps to get your files.
+
+In all prompts you can enter 'q', 'quit' or 'exit' to exit the program. Enter 'b' or 'back' to go back to the main menu.
+
 ## Acknowledgements
 
 The user can select which mode they want to use via a fancy selection menu I found on [StackExchange](https://unix.stackexchange.com/questions/146570/arrow-key-enter-menu).
