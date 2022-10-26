@@ -32,7 +32,7 @@ Ubuntu users should note that Ubuntu 22.04 LTS has an old version of yt-dlp in i
 
 ## Usage
 
-Depending on your operating system, launching the script may differ, but in general there three ways:
+Depending on your operating system, launching the script may differ, but in general there are three ways:
 - macOS: remove the `.sh` file extension, now you can simply double-click to launch
 - Ubuntu: right click and choose "Run as a Program" (there are tutorials to make double-click work as well)
 - any OS: open a Terminal window, navigate to the script directory and enter `./tiktok-downloader.sh`
