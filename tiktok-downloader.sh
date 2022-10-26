@@ -7,7 +7,7 @@
 
 version="1.6"
 
-# Version 1.6 (TBA) - bugxfies, improved support for Ubuntu/Debian based distributions
+# Version 1.6 (2022-10-26) - bugxfies, improved support for Ubuntu/Debian based distributions
 # Version 1.5 (2022-10-25) - embedding video description and URL into the file's metadata, embedding subtitles (if available), check for yt-dlp updates is now optional
 # Version 1.4 (2022-10-24) - bug fixes and compatibility improvements 
 # Version 1.3 (2022-10-24) - added "Restore Mode" (experimental)
