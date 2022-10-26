@@ -5,6 +5,9 @@
 # In "Avatar Mode" the script downloads the profile picture of a TikTok channel in the highest resolution available.
 # In "Restore Mode" the script tries to (re)download videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4
 
+version="1.6"
+
+# Version 1.6 (TBA) - bugxfies, improved support for Ubuntu/Debian based distributions
 # Version 1.5 (2022-10-25) - embedding video description and URL into the file's metadata, embedding subtitles (if available), check for yt-dlp updates is now optional
 # Version 1.4 (2022-10-24) - bug fixes and compatibility improvements 
 # Version 1.3 (2022-10-24) - added "Restore Mode" (experimental)
@@ -24,16 +27,13 @@ legacy_mode="false"         # set to "true" if you can't use the interactive sel
 check_for_updates="true"    # set to "false" if you don't want to check for an update of yt-dlp at startup
 
 
-# handle keyboard interrupt (CTRL+C)
-trap "echo -e '\n\033[1;31m\u26A0 Process aborted by user!\033[0m\n'; exit 1;" INT SIGINT
-
 ### Functions
 
 ## define select menu function
 # source: https://unix.stackexchange.com/questions/146570/arrow-key-enter-menu
 
 # shellcheck disable=SC1087,SC2059,SC2034,SC2162,SC2086,SC2162,SC2155,SC2006,SC2004
-function select_option {
+function select_option() {
 
     # little helpers for terminal print control and key input
     ESC=$( printf "\033")
@@ -53,7 +53,7 @@ function select_option {
 
     # determine current screen position for overwriting the options
     
-    local lastrow=`get_cursor_row`
+    local lastrow=$(get_cursor_row)
     local startrow=$(($lastrow - $#))
 
     # ensure cursor and input echoing back on upon a ctrl+c during read -s
@@ -755,8 +755,8 @@ function help_screen() {
 
     echo ""
 
-    echo "Get the latest version GitHub:"
-    echo "https://github.com/anga83/tiktok-downloader"
+    echo "You're running version $version of this script."
+    echo "GitHub: https://github.com/anga83/tiktok-downloader"
 
     echo ""
 
@@ -779,7 +779,7 @@ then
 fi
 
 # check if the Bash version can handle the interactive selection menu
-if [[ ${BASH_VERSINFO[0]} -lt 4 ]] || [[ ${BASH_VERSINFO[1]} -lt 2 ]]
+if [[ "${BASH_VERSINFO[0]}" -lt 4 || ( "${BASH_VERSINFO[0]}" -eq 4 && "${BASH_VERSINFO[1]}" -lt 2 ) ]]
 then
     legacy_mode="true"
 fi
@@ -787,15 +787,22 @@ fi
 # check if yt-dlp is up to date
 
 # if check_for_yt-dlp_updates is set to "true", check if yt-dlp is up to date
-if [[ $check_for_updates == "true" ]]
+# setting gets overwritten if the Linux distribution is Debian-based, as yt-dlp's self-update mechanism is disabled on Debian, which causes the version check to fail
+if [[ $check_for_updates == "true" ]] && [ ! -f /etc/debian_version ]
 then
+
     yt_dlp_version=$(yt-dlp --update)
 
     if [[ ! $yt_dlp_version == *"is up to date"* ]]
     then
-        echo -e "\033[1;93mYou have an outdated version of yt-dlp installed.\033[0m"
-        echo -e "\033[1;93mIf you encounter download errors, update yt-dlp and retry again.\033[0m"
-        echo ""
+
+        if [[ ! $yt_dlp_version == *"self-update mechanism is disabled"* ]]
+        then
+            echo -e "\033[1;93mYou have an outdated version of yt-dlp installed.\033[0m"
+            echo -e "\033[1;93mIf you encounter download errors, update yt-dlp and retry again.\033[0m"
+            echo ""
+        fi
+
     fi
 fi
 
