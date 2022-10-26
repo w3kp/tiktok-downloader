@@ -28,6 +28,7 @@ Windows users need to use Cygwin or WSL to run Bash scripts. Most Linux distribu
 Simply download [tiktok-downloader.sh](https://raw.githubusercontent.com/anga83/tiktok-downloader/main/tiktok-downloader.sh) from the files above and save it in a convenient place. Like all Bash scripts, the file has to be marked as executable. To do this, open a terminal window and paste `chmod +x /path/to/tiktok-downloader.sh`. Once that is done, you can double-click it to run.
 
 If you don't already have it installed you also need to install [yt-dlp](https://github.com/yt-dlp/yt-dlp).
+Ubuntu users should note that Ubuntu 22.04 LTS has an old version of yt-dlp in its package repositories, which is no longer able to parse TikTok. Check the link above to update to the latest version.
 
 
 ## Acknowledgements
