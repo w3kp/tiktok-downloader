@@ -5,7 +5,7 @@
 # In "Avatar Mode" the script downloads the profile picture of a TikTok channel in the highest resolution available.
 # In "Restore Mode" the script tries to (re)download videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4
 
-version="1.7"
+version="1.7.2"
 
 # Version 1.7 (2022-10-26) - script now preserves the output folder when changing modes, improved visibility on dark terminal window backgrounds, added more environment checks, added debug information to help screen, improved legacy support (mainly for macOS with built-in bash 3.2)
 # Version 1.6 (2022-10-26) - bugxfies, improved support for Ubuntu/Debian based distributions
