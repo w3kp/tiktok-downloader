@@ -8,7 +8,7 @@ This Bash script allows you to download TikTok videos without watermarks — bot
 
 Underneath the surface, my script uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for downloading, which is the only external dependency[^1]. If downloading fails, check if [yt-dlp](https://github.com/yt-dlp/yt-dlp) is installed and up-to-date.
 
-The script is confirmed working on macOS[^1], but it should run on all platforms with Bash and yt-dlp installed.
+The script is confirmed working on macOS[^1] and Ubuntu, but it should run on all platforms with Bash and yt-dlp installed.
 
 ## Features
 
@@ -30,6 +30,12 @@ Simply download [tiktok-downloader.sh](https://raw.githubusercontent.com/anga83/
 If you don't already have it installed you also need to install [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 Ubuntu users should note that Ubuntu 22.04 LTS has an old version of yt-dlp in its package repositories, which may cause the download process to fail. Check the link above to update to the latest version.
 
+## Usage
+
+Depending on your operating system, launching the script may differ, but in general there three ways:
+- macOS: remove the `.sh` file extension, now you can simply double-click to launch
+- Ubuntu: right click and choose "Run as a Program" (there are tutorials to make double-click work as well)
+- any OS: open a Terminal window, navigate to the script directory and enter `./tiktok-downloader.sh`
 
 ## Acknowledgements
 
