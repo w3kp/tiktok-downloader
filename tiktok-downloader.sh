@@ -5,8 +5,9 @@
 # In "Avatar Mode" the script downloads the profile picture of a TikTok channel in the highest resolution available.
 # In "Restore Mode" the script tries to (re)download videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4
 
-version="1.7.2"
+version="1.8"
 
+# Version 1.8 (2022-10-26) - if user launches the script with the wrong shell the script will now try to launch itself with the correct shell instead of exiting, warning can be suppressed
 # Version 1.7 (2022-10-26) - script now preserves the output folder when changing modes, improved visibility on dark terminal window backgrounds, added more environment checks, added debug information to help screen, improved legacy support (mainly for macOS with built-in bash 3.2)
 # Version 1.6 (2022-10-26) - bugxfies, improved support for Ubuntu/Debian based distributions
 # Version 1.5 (2022-10-25) - embedding video description and URL into the file's metadata, embedding subtitles (if available), check for yt-dlp updates is now optional
@@ -22,10 +23,14 @@ version="1.7.2"
 ### Variables:
 
 output_folder=""        # leave empty
-default_folder=""       # set here your default download folder (optional)
+default_folder=""       # set your default download folder (optional)
 
-legacy_mode="false"         # set to "true" if you can't use the interactive selection menu or the script won't run at all in your environment
+
+### Settings
+
+legacy_mode="false"         # set to "true" if you want to use the script with Bash versions < 4.2, this will disable some features
 check_for_updates="true"    # set to "false" if you don't want to check for updates of yt-dlp at startup
+show_warning_when_shell_is_not_bash="true"    # set to "false" if you don't want to see a warning when the script is not executed with Bash
 
 
 ### Functions
@@ -402,8 +407,14 @@ function restore_mode() {
         # print an empty line
         echo ""
 
+
+        # if line doesn't end with ".mp4", append ".mp4"
+        if [[ ! "${line}" =~ \.mp4$ ]]; then
+            line="${line}.mp4"
+        fi
+
         # check if the line is in the correct format: <a-z, A-Z, 0-9, .>_<bunch of numbers>.mp4
-        if [[ $line =~ ^[a-zA-Z0-9.]*_[0-9]*.mp4$ ]]
+        if [[ "$line" =~ ^[a-zA-Z0-9.]*_[0-9]*.mp4$ ]]
         then
 
             # get the username and video id from the line
@@ -776,19 +787,24 @@ function help_screen() {
     echo ""
     echo ""
     echo "Debug information (include in issues):"
-    echo "  Script version: $version"
+    # if legacy mode is disabled
+    if [[ $legacy_mode == "false" ]]
+    then
+        echo "  Script version: $version"
+    else
+        echo "  Script version: $version (running in legacy mode)"
+    fi
     echo "  Bash version $BASH_VERSION."
     echo "  yt-dlp version: $(yt-dlp --version)"
-    echo "  Device Details: $(uname -prs)"
     # if OS is Linux, print the Linux distribution
     if [[ $OSTYPE == "linux-gnu" ]]
     then
-        echo "  Linux distribution: $(lsb_release -d | sed 's/Description:	//')"
+        echo "  Linux distribution: $(lsb_release -d | sed 's/Description:	//') @ $(uname -prs)"
     fi
     # if OS is macOS, print the macOS version
     if [[ $OSTYPE == "darwin"* ]]
     then
-        echo "  macOS version: $(sw_vers -productVersion)"
+        echo "  macOS version: $(sw_vers -productVersion) @ $(uname -prs)"
         # check if ggrep is installed
         if [[ $(command -v ggrep) ]]
         then
@@ -800,7 +816,13 @@ function help_screen() {
     # if OS is Windows, print the Windows version
     if [[ $OSTYPE == "msys" ]] || [[ $OSTYPE == "cygwin" ]] || [[ $OSTYPE == "win32" ]]
     then
-        echo "  Windows version: $(ver)"
+        echo "  Windows version: $(ver) @ $OSTYPE @ $(uname -prs)"
+    fi
+
+    # if the script was launched with a parameter, print it
+    if [[ $received_error_log != "" ]]
+    then
+        echo "  Script was originally launched with: $received_error_log"
     fi
 
     echo ""
@@ -815,21 +837,45 @@ function help_screen() {
 
 ### Main code
 
-# Welcome message
-echo -e "\033[1;95mWelcome to the TikTok Downloader.\033[0m"
-
 ## perform some checks before starting the main menu
 
 # check under which shell we are running
 if [[ $(ps -p $$ -o comm=) != *"bash" ]]; then
-    echo -e "\033[1;91mError: This script must be run under Bash.\033[0m"
-    echo -e "You started it under \033[1;91m$(ps -p $$ -o comm=)\033[0m."
-    echo ""
-    echo "Usage: ./tiktok-downloader.sh"
-    echo "See README for more information."
-    echo ""
-    exit 1
+
+    # if show_warning_when_shell_is_not_bash is enabled, print a warning, otherwise try to suppress any warning and do the trick without the users' notice
+    if [[ $show_warning_when_shell_is_not_bash == "true" ]]
+    then
+        
+        echo -e "\033[1;93mWarning: This script must be run under Bash instead of \033[1;91m$(ps -p $$ -o comm=).\033[0m"
+        echo -e "\033[0;93mUsage: ./tiktok-downloader.sh\nSee README for more information.\033[0m"
+        echo ""
+        echo "\033[0;93mTrying to fix this...\033[0m"
+        echo ""
+
+        pass_error_log="$(ps -p $$ -o comm=)"
+
+        { /usr/bin/env bash "$0" "$pass_error_log"; exit 0; } || { echo -e "\033[1;91mThat didn't work. Make sure you have Bash installed.\033[0m";  exit 1; }
+
+    else
+
+        pass_error_log="$(ps -p $$ -o comm=)"
+
+        { /usr/bin/env bash "$0" "$pass_error_log"; exit 0; } || { echo -"TikTok Downloader could't be launched because Bash is not installed.";  exit 1; }
+
+    fi
+
 fi
+
+# if the script was launched with a parameter, save it in a variable received_error_log
+if [[ $1 != "" ]]
+then
+    received_error_log="$1"
+else
+    received_error_log=""
+fi
+
+# Welcome message
+echo -e "\033[1;95mWelcome to the TikTok Downloader.\033[0m"
 
 # check if yt-dlp is installed
 if ! command -v yt-dlp &> /dev/null
