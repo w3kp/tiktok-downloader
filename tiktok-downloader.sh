@@ -727,14 +727,7 @@ function ask_for_output_folder() {
 
     else
 
-        # if ouptut_folder is empty, suggest default_folder
-        # if ouptut_folder is not empty, suggest output_folder
-        if [[ $output_folder == "" ]]
-        then
-            read -rep $'\033[1;95m> \033[0m' output_folder
-        else
-            read -rep $'\033[1;95m> \033[0m' output_folder
-        fi
+        read -rep $'\033[1;95m> \033[0m' output_folder
 
     fi
 
