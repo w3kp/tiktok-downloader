@@ -949,6 +949,8 @@ function help_screen() {
     echo -e " In single mode, you can download a single TikTok video by entering the TikTok URL."
     echo -e "\033[1mBatch Mode\033[0m"
     echo -e " In batch mode, you can download multiple TikTok videos by entering the path to a text file containing the TikTok URLs."
+    echo -e "\033[1mLive Mode\033[0m"
+    echo -e " In live mode, you can download a TikTok livestream by entering the username or profile URL."
     echo -e "\033[1mAvatar Mode\033[0m"
     echo -e " In avatar mode, you can download the profile picture of a TikTok user by entering the TikTok username."
     echo -e "\033[1mRestore Mode\033[0m"
@@ -958,6 +960,9 @@ function help_screen() {
     echo "In all modes you can enter an output directory for the downloaded videos. If you don't enter anything, the default directory will be used (if set)."
     echo ""
     echo "In all prompts you can enter 'q', 'quit' or 'exit' to exit the program. Enter 'b' or 'back' to go back to the main menu."
+
+    echo ""
+    echo "See README for further information."
 
     echo ""
     echo ""
