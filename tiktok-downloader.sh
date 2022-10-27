@@ -2,11 +2,13 @@
 
 # This script allows you to use yt-dlp to download a TikTok video.
 # The script has both a mode for downloading a single video and a mode to download all videos passed to the script via a text file.
+# "Live Mode" allows the user to download a running TikTok live stream. Note that the recording will only start after the script has been started.
 # In "Avatar Mode" the script downloads the profile picture of a TikTok channel in the highest resolution available.
 # In "Restore Mode" the script tries to (re)download videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4
 
-version="1.8"
+version="2.0"
 
+# Version 2.0 (2022-10-27) - added live mode, simplified the option to save files in the script's directory
 # Version 1.8 (2022-10-26) - if user launches the script with the wrong shell the script will now try to launch itself with the correct shell instead of exiting, warning can be suppressed
 # Version 1.7 (2022-10-26) - script now preserves the output folder when changing modes, improved visibility on dark terminal window backgrounds, added more environment checks, added debug information to help screen, improved legacy support (mainly for macOS with built-in bash 3.2)
 # Version 1.6 (2022-10-26) - bugxfies, improved support for Ubuntu/Debian based distributions
@@ -22,8 +24,10 @@ version="1.8"
 
 ### Variables:
 
-output_folder=""        # leave empty
-default_folder=""       # set your default download folder (optional)
+BASEDIR=$(dirname "$0")     # do not edit
+
+output_folder=""            # dot not edit
+default_folder=""           # set your default download folder (optional) -- change to default_folder="$BASEDIR" to save files in the script's folder
 
 
 ### Settings
@@ -606,6 +610,165 @@ function avatar_mode() {
 }
 
 
+## function: live mode
+function live_mode() {
+
+    username=""
+    liveurl=""
+    roomid=""
+    jsondata=""
+    playlisturl=""
+    datetime=""
+    output_name=""
+
+    # print an empty line
+    echo ""
+
+    # ask user for TikTok username
+    echo -e "\n\033[1;95mEnter TikTok username or profile URL: \033[0m"
+    read -rep $'\033[1;95m> \033[0m' username
+
+    # if the input is empty, "q", "quit" or "exit", exit the program
+    if [[ $username == "" ]] || [[ $username == "exit" ]] || [[ $username == "quit" ]] || [[ $username == "q" ]]
+    then
+        echo ""
+        exit 0
+    fi
+
+    # if the input is "b" or "back", go back to the main menu
+    if [[ $username == "b" ]] || [[ $username == "back" ]]
+    then
+        echo ""
+        main_menu
+    fi
+
+    # if the URL contains a "?" remove it and everything after it
+    if [[ $url == *"?"* ]]; then
+        url=$(echo $url | cut -d'?' -f1)
+    fi
+
+    # strip spaces from the URL
+    url=$(echo "$url" | tr -d '[:space:]')
+
+
+    # if the URL starts with "https://www.tiktok.com/@", extract the username
+    if [[ $url == "https://www.tiktok.com/@"* ]]; then
+
+        username=$(echo $url | cut -d'@' -f2 | cut -d'/' -f1)
+
+    fi
+
+    echo ""
+
+    # print the username
+    echo "  Username: $username"
+
+    # build the live URL
+    liveurl="https://www.tiktok.com/@$username/live"
+
+    # print the videoid
+    echo "  Live URL: $liveurl"
+
+    # create a temporary file in the current directory
+    tempfile=$(mktemp)
+
+    # use curl to get the html source code of the live page and save it to the temporary file
+    # The user agent is needed, as TkikTok will only show a blank page if curl doesn't pretend to be a browser.
+    { curl "$liveurl" -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36" > "$tempfile" ; } ||
+    { echo -e "\033[1;91mError: Couldn't get Room ID.\033[0m"; echo ""; live_mode; }
+
+    # in the temporary file, look for the JSON object that contains "avatarLarger" and save that value to avatarurl
+
+    # if "ggrep" is installed, use it, otherwise use "grep"
+    if command -v ggrep &> /dev/null
+    then
+        roomid=$(ggrep -oP '(?<="roomId":")[^"]*' "$tempfile")
+    else
+        roomid=$(grep -oP '(?<="roomId":")[^"]*' "$tempfile")
+    fi
+
+    # cut the roomid at the first special character
+    roomid=$(echo $roomid | cut -d'?' -f1)
+
+    # cut the roomid before the first space
+    roomid=$(echo $roomid | cut -d' ' -f1)
+
+    # print the room id
+    echo "  Room ID: $roomid"
+
+    # write the response of "https://www.tiktok.com/api/live/detail/?aid=1988&roomID=${roomId}" to jsondata
+    jsondata=$(curl "https://www.tiktok.com/api/live/detail/?aid=1988&roomID=${roomid}" -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36")
+
+    # store the JSON object LiveRoomInfo.liveUrl in playlisturl
+    playlisturl=$(echo "$jsondata" | jq -r '.LiveRoomInfo.liveUrl')
+
+    # print the playlist URL
+    # echo "  Playlist URL: $playlisturl"
+
+    # if the playlist URL is empty, something went wrong. Abort.
+    if [[ $playlisturl == "" ]]
+    then
+        echo -e "\n\033[1;91mError: Couldn't get playlist URL.\033[0m"
+        echo ""
+        live_mode
+    fi
+
+    # get the current date and time in format YYYY-MM-DD_HHMM
+    datetime=$(date +"%Y-%m-%d_%H%M")
+
+    # generate the filename: username_datetime.mp4
+    output_name="${username}_${datetime}.mp4"
+
+    # print the filename
+    echo "  Output File: $output_name"
+
+
+
+    echo -ne "\n  Downloading...\n\e[90m  Press ctrl+c to stop.\e[0m"
+
+    # use ffmpeg to download the video
+    ffmpeg -hide_banner -loglevel quiet -i "$playlisturl" -bsf:a aac_adtstoasc "$output_folder/$output_name"
+
+    # trap ctrl+c and call live_ctrl_c()
+    trap live_ctrl_c INT
+
+
+    # delete the temporary file
+    rm "$tempfile"
+
+
+    # check if the video was downloaded successfully
+        if [[ ! -f "$output_folder/$output_name" ]]
+        then 
+            # if no, print an error message
+            echo -e "\033[1;91m  Download failed.\033[0m"
+        fi
+
+    # run the function again
+    live_mode
+
+}
+
+
+function live_ctrl_c() {
+
+    # delete the temporary file
+    rm "$tempfile"
+
+
+    # check if the video was downloaded successfully
+        if [[ ! -f "$output_folder/$output_name" ]]
+        then 
+            # if no, print an error message
+            echo -e "\033[1;91m  Download failed.\033[0m"
+        fi
+
+    # run the function again
+    live_mode
+
+}
+
+
 ## function: main menu
 function main_menu() {
 
@@ -616,7 +779,7 @@ function main_menu() {
        # show a selection menu with the options "single mode" "batch mode" and save the user input in the variable mode
         echo -e "\n\033[1;95mWhich mode do you want to use?\033[0m"
 
-        modeoptions=("Single Mode" "Batch Mode" "Avatar Mode" "Restore Mode" "Help" "Exit")
+        modeoptions=("Single Mode" "Batch Mode" "Avatar Mode" "Live Mode" "Restore Mode" "Help" "Exit")
         select_option "${modeoptions[@]}"
         modechoice=$?
 
@@ -628,6 +791,10 @@ function main_menu() {
         then
             ask_for_output_folder
             batch_mode
+        elif [[ "${modeoptions[$modechoice]}" == "Live Mode" ]]
+        then
+            ask_for_output_folder
+            live_mode
         elif [[ "${modeoptions[$modechoice]}" == "Avatar Mode" ]]
         then
             ask_for_output_folder
@@ -652,10 +819,11 @@ function main_menu() {
         echo -e "\n\033[1;95mWhich mode do you want to use?\033[0m"
         echo -e "\033[1;95m1) Single Mode\033[0m"
         echo -e "\033[1;95m2) Batch Mode\033[0m"
-        echo -e "\033[1;95m3) Avatar Mode\033[0m"
-        echo -e "\033[1;95m4) Restore Mode\033[0m"
-        echo -e "\033[1;95m5) Help\033[0m"
-        echo -e "\033[1;95m6) Exit\033[0m"
+        echo -e "\033[1;95m3) Live Mode\033[0m"
+        echo -e "\033[1;95m4) Avatar Mode\033[0m"
+        echo -e "\033[1;95m5) Restore Mode\033[0m"
+        echo -e "\033[1;95m6) Help\033[0m"
+        echo -e "\033[1;95m7) Exit\033[0m"
 
         # read the user input and save it to the variable mode
         read -rep $'\033[1;95m> \033[0m' mode
@@ -681,15 +849,22 @@ function main_menu() {
             batch_mode
         fi
 
-        # if the input is "3", "avatar mode" or "avatar", run the avatar mode function
-        if [[ $mode == "3" ]] || [[ $mode == "avatar mode" ]] || [[ $mode == "avatar" ]]
+         # if the input is "3", "live mode" or "live", run the avatar mode function
+        if [[ $mode == "3" ]] || [[ $mode == "live mode" ]] || [[ $mode == "live" ]]
+        then
+            ask_for_output_folder
+            live_mode
+        fi
+
+        # if the input is "4", "avatar mode" or "avatar", run the avatar mode function
+        if [[ $mode == "4" ]] || [[ $mode == "avatar mode" ]] || [[ $mode == "avatar" ]]
         then
             ask_for_output_folder
             avatar_mode
         fi
 
-        # if the input is "4", "restore mode" or "restore", run the restore mode function
-        if [[ $mode == "4" ]] || [[ $mode == "restore mode" ]] || [[ $mode == "restore" ]]
+        # if the input is "5", "restore mode" or "restore", run the restore mode function
+        if [[ $mode == "5" ]] || [[ $mode == "restore mode" ]] || [[ $mode == "restore" ]]
         then        
             echo -e "\033[95m\nNote: Restore Mode is used to (re)download TikToks based on the file name. Existing files will be overwritten. The input is a text file with entries in the following format: <user name>_<video id>.mp4\n\033[0m"
 
@@ -697,14 +872,14 @@ function main_menu() {
             restore_mode
         fi
 
-        # if the input is "5", "help" or "h", run the help screen function
-        if [[ $mode == "5" ]] || [[ $mode == "help" ]] || [[ $mode == "h" ]]
+        # if the input is "6", "help" or "h", run the help screen function
+        if [[ $mode == "6" ]] || [[ $mode == "help" ]] || [[ $mode == "h" ]]
         then
             help_screen
         fi
 
-        # if the input is "6", "exit" or "q", exit the program
-        if [[ $mode == "6" ]] || [[ $mode == "exit" ]] || [[ $mode == "q" ]]
+        # if the input is "7", "exit" or "q", exit the program
+        if [[ $mode == "7" ]] || [[ $mode == "exit" ]] || [[ $mode == "q" ]]
         then
             echo ""
             exit 0
@@ -926,6 +1101,14 @@ then
     fi
 fi
 
+# check if ffmpeg is installed
+if ! command -v ffmpeg &> /dev/null
+then
+    echo -e "\033[1;93mWarning: ffmpeg is not installed.\033[0m"
+    echo -e "\033[1;93mLive Mode won't work, but you can use the other modes.\033[0m"
+    echo ""
+fi
+
 # if the OS is macOS and ggrep is not installed, print a warning
 if [[ $OSTYPE == "darwin"* ]]
 then
@@ -939,6 +1122,7 @@ then
 
     fi
 fi
+
 
 main_menu
 
