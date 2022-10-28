@@ -59,5 +59,21 @@ In all prompts you can enter 'q', 'quit' or 'exit' to exit the program. Enter 'b
 The users can choose the mode they want to use via a fancy selection menu originally written by [Alexander Klimetschek](https://unix.stackexchange.com/users/219724/alexander-klimetschek) on [StackExchange](https://unix.stackexchange.com/questions/146570/arrow-key-enter-menu).
 The visualization of the terminal window was created with [Carbon](https://carbon.now.sh).
 
+## Contribution
+
+While this script is already pretty extensive with currently 6 download modes, there are always things to improve. If there are things you'd like to add, feel free to make a pull request. Here is a list of missing things I've noticed, but struggling with:
+
+<details><summary><b>Missing features list</b></summary>
+
+- Make script more robust against wrong user inputs and making it failproof in varying environments
+- Checking if yt-dlp is up-to-date on Debian-based distributions (yt-dlp's integrated update mechanism is disable)
+- Wiki entry: Writing a step-by-step guide to run this script on Windows
+- Fixing cover art integration in Music Mode
+- Trapping ctrl+c during live recording without killing the script. <br />(My previous attempts to grab the process ID of ffmpeg in order to subsequently killing n this process did not work. Either the recording did not start at all or ffmpeg continued to run in the background after returning to the main menu.)
+- Sometimes the public API (JSON output) doesn't show the TikTok HLS playlist URL despite the host being live. Similar tools than mine are also struggling with this [issue](https://github.com/Pauloo27/tiktok-live/issues/4), especially since it's reproducibly broken with some hosts while others work fine. <br />(To this point I couldn't find a way to grab either the m3u8 play or flv stream URL directly from the website instead of the API call. Any idea on how to bypass this issue or why it happens with one but not the other is appreaciated.)
+
+
+</details>
+
 
 [^1]: macOS now uses zsh as default shell and hasn't updated Bash for ages. The script should automatically fallback to a "classic" selection menu, but other issues may still arise. You may update Bash via [Homebrew](https://formulae.brew.sh/formula/bash). <br />macOS users also need to install GNU grep (`ggrep`) via [Homebrew](https://formulae.brew.sh/formula/grep). Otherwise "Avatar Mode" and "Music Mode" won't work. Linux users can skip that part, since they already have the correct version of `grep` installed.
