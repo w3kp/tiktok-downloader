@@ -56,8 +56,8 @@ In all prompts you can enter 'q', 'quit' or 'exit' to exit the program. Enter 'b
 
 ## Acknowledgements
 
-The user can select which mode they want to use via a fancy selection menu I found on [StackExchange](https://unix.stackexchange.com/questions/146570/arrow-key-enter-menu).
-The sreenshot above was created with [Carbon](https://carbon.now.sh).
+The users can choose the mode they want to use via a fancy selection menu originally written by [Alexander Klimetschek](https://unix.stackexchange.com/users/219724/alexander-klimetschek) on [StackExchange](https://unix.stackexchange.com/questions/146570/arrow-key-enter-menu).
+The visualization of the terminal window was created with [Carbon](https://carbon.now.sh).
 
 
-[^1]: macOS now uses zsh as default shell and hasn't updated Bash for ages. The script should automatically fallback to a "classic" selection menu, but other issues may still arise. You may update Bash via [Homebrew](https://formulae.brew.sh/formula/bash). <br />macOS users also need to install GNU grep (`ggrep`) via [Homebrew](https://formulae.brew.sh/formula/grep). Otherwise "Avatar Mode" won't work. Linux users can skip that part, since they already have the correct version of `grep`installed.
+[^1]: macOS now uses zsh as default shell and hasn't updated Bash for ages. The script should automatically fallback to a "classic" selection menu, but other issues may still arise. You may update Bash via [Homebrew](https://formulae.brew.sh/formula/bash). <br />macOS users also need to install GNU grep (`ggrep`) via [Homebrew](https://formulae.brew.sh/formula/grep). Otherwise "Avatar Mode" and "Music Mode" won't work. Linux users can skip that part, since they already have the correct version of `grep` installed.
