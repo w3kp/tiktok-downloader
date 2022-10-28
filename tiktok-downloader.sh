@@ -22,17 +22,13 @@ version="2.2"
 # Version 1.0 (2022-10-23) - initial version
 
 
-# Roadmap:
-#  - stop live recordings by pressing Ctrl+C without killing the script
-
-
 ### Dependencies:
 #   Required:
 #   - yt-dlp (https://github.com/yt-dlp/yt-dlp)             # needed for downloading TikTok videos
-#   - ffmpeg (https://ffmpeg.org)                           # needed for downloading TikTok lives
+#   - ffmpeg (https://ffmpeg.org)                           # needed for downloading TikTok lives and sounds
 #
 #   on macOS hosts additionally required:
-#   - ggrep (https://formulae.brew.sh/formula/grep)         # needed for downloading TikTok lives and avatar images
+#   - ggrep (https://formulae.brew.sh/formula/grep)         # needed for downloading TikTok lives, avatar images and sounds
 #
 #   Optional:
 #   - ffprobe (https://ffmpeg.org)                          # needed for showing the recording duration of TikTok lives
