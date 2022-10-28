@@ -70,7 +70,7 @@ While this script is already pretty extensive with currently 6 download modes, t
 - Wiki entry: Writing a step-by-step guide to run this script on Windows
 - Fixing cover art integration in Music Mode
 - Trapping ctrl+c during live recording without killing the script. <br />(My previous attempts to grab the process ID of ffmpeg in order to subsequently killing n this process did not work. Either the recording did not start at all or ffmpeg continued to run in the background after returning to the main menu.)
-- Sometimes the public API (JSON output) doesn't show the TikTok HLS playlist URL despite the host being live. Similar tools than mine are also struggling with this [issue](https://github.com/Pauloo27/tiktok-live/issues/4), especially since it's reproducibly broken with some hosts while others work fine. <br />(To this point I couldn't find a way to grab either the m3u8 play or flv stream URL directly from the website instead of the API call. Any idea on how to bypass this issue or why it happens with one but not the other is appreaciated.)
+- Sometimes the public API doesn't show the TikTok HLS playlist URL (JSON object `.LiveRoomInfo.liveUrl`) despite the host being live. Similar tools than mine are also struggling with this [issue](https://github.com/Pauloo27/tiktok-live/issues/4), especially since it's reproducibly broken with some hosts while others work fine. <br />(To this point I couldn't find a way to grab either the m3u8 play or flv stream URL directly from the website instead of the API call. Any idea on how to bypass this issue or why it happens with one but not the other is appreaciated.)
 
 
 </details>
