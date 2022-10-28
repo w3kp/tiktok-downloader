@@ -1,4 +1,5 @@
 # TikTok Videos & Live Downloader
+_Download any TikToks, profile pictures, sounds and ongoing livestreams_
 
 ![tiktok-downloader](https://raw.githubusercontent.com/anga83/tiktok-downloader/main/screenshot-v2.0.png)
 
@@ -32,7 +33,9 @@ Simply download [tiktok-downloader.sh](https://raw.githubusercontent.com/anga83/
 If you don't already have it installed you also need to install [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 Ubuntu users should note that Ubuntu 22.04 LTS has an old version of yt-dlp in its package repositories, which may cause the download process to fail. Check the link above to update to the latest version.
 
-To record TikTok Lives you also need [ffmpeg](https://ffmpeg.org/) to be installed. Optionally, [ffprobe](https://ffmpeg.org/) allows you to see the recording duration.
+To record TikTok Lives and download sounds you also need [ffmpeg](https://ffmpeg.org/) to be installed. Optionally, [ffprobe](https://ffmpeg.org/) allows you to see the recording duration.
+
+See the script's header for more information about dependenices.
 
 
 ## Usage
