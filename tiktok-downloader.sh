@@ -1208,7 +1208,7 @@ function music_mode() {
 
 
     # generate filename from Title and Author
-    filename_pattern="${title} - ${author}"
+    filename_pattern="${author} - ${title}"
 
     # replace all characters that are not allowed in filenames with an underscore, spaces are allowed
     filename_pattern=${filename_pattern//[^a-zA-Z0-9 -_]/_}
