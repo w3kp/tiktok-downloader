@@ -75,5 +75,6 @@ While this script is already pretty extensive with currently 6 download modes, t
 
 </details>
 
+Any help is appreciated! :)
 
 [^1]: macOS now uses zsh as default shell and hasn't updated Bash for ages. The script should automatically fallback to a "classic" selection menu, but other issues may still arise. You may update Bash via [Homebrew](https://formulae.brew.sh/formula/bash). <br />macOS users also need to install GNU grep (`ggrep`) via [Homebrew](https://formulae.brew.sh/formula/grep). Otherwise "Avatar Mode" and "Music Mode" won't work. Linux users can skip that part, since they already have the correct version of `grep` installed.
