@@ -6,8 +6,9 @@
 # In "Avatar Mode" the script downloads the profile picture of a TikTok channel in the highest resolution available.
 # In "Restore Mode" the script tries to (re)download videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4
 
-version="2.0"
+version="2.1"
 
+# Version 2.1 (2022-10-28) - default folder is now script folder by default, the stream title of TikToks lives gets now written into the description metadata field, Avatar Mode can now handle existing files, now showing recording duration if ffprobe is installed, several fixes to make the script more robust, clearified dependencies and settings description, added more settings
 # Version 2.0 (2022-10-27) - added live mode, simplified the option to save files in the script's directory
 # Version 1.8 (2022-10-26) - if user launches the script with the wrong shell the script will now try to launch itself with the correct shell instead of exiting, warning can be suppressed
 # Version 1.7 (2022-10-26) - script now preserves the output folder when changing modes, improved visibility on dark terminal window backgrounds, added more environment checks, added debug information to help screen, improved legacy support (mainly for macOS with built-in bash 3.2)
@@ -19,22 +20,43 @@ version="2.0"
 # Version 1.1 (2022-10-23) - added "Avatar Mode"
 # Version 1.0 (2022-10-23) - initial version
 
-# Dependencies: yt-dlp (https://github.com/yt-dlp/yt-dlp)
-#   on macOS additionally: ggrep (https://formulae.brew.sh/formula/grep)
+
+### Dependencies:
+#   Required:
+#   - yt-dlp (https://github.com/yt-dlp/yt-dlp)             # needed for downloading TikTok videos
+#   - ffmpeg (https://ffmpeg.org)                           # needed for downloading TikTok lives
+#
+#   on macOS hosts additionally required:
+#   - ggrep (https://formulae.brew.sh/formula/grep)         # needed for downloading TikTok lives and avatar images
+#
+#   Optional:
+#   - ffprobe (https://ffmpeg.org)                          # needed for showing the recording duration of TikTok lives
+#   - bash >= 4.2                                           # needed for interactive main menu
+
 
 ### Variables:
 
-BASEDIR=$(dirname "$0")     # do not edit
-
-output_folder=""            # dot not edit
-default_folder=""           # set your default download folder (optional) -- change to default_folder="$BASEDIR" to save files in the script's folder
+BASEDIR=$(dirname "$0")     # do not edit this line
+output_folder=""            # dot not edit this line
 
 
 ### Settings
 
-legacy_mode="false"         # set to "true" if you want to use the script with Bash versions < 4.2, this will disable some features
-check_for_updates="true"    # set to "false" if you don't want to check for updates of yt-dlp at startup
-show_warning_when_shell_is_not_bash="true"    # set to "false" if you don't want to see a warning when the script is not executed with Bash
+default_folder="$BASEDIR"                            # set default download folder, leave empty for empty prompt // default_folder="$BASEDIR" will save files in the script's folder
+
+legacy_mode="false"                                  # set to "true" if script won't start, this will disable some features (namely the interactive main menu and output folder suggestions)
+
+check_for_updates="true"                             # set to "false" if you don't want to check for yt-dlp updates at startup (if true, script may take a few seconds longer to start)
+show_warning_when_shell_is_not_bash="true"           # set to "false" if you don't want to see a warning when the script is not executed with Bash
+show_warning_when_ffmpeg_is_not_installed="true"     # set to "false" if you don't want to see a warning when ffmpeg is not installed
+show_warning_when_ggrep_is_not_installed="true"      # set to "false" if you don't want to see a warning when ggrep is not installed (only macOS)
+
+
+
+### Traps
+
+# ensures the temporary file gets deleted on exit; reference: https://unix.stackexchange.com/a/181939
+trap 'rm -f "$tempfile"' 0 2 3 15
 
 
 ### Functions
@@ -525,6 +547,7 @@ function avatar_mode() {
     username=""
     userurl=""
     avatarurl=""
+    output_name=""
 
 
     # ask user for TikTok username
@@ -568,7 +591,7 @@ function avatar_mode() {
     fi
 
     # create a temporary file in the current directory
-    tempfile=$(mktemp)
+    tempfile=$(mktemp "${BASEDIR}/ttd-ava.XXXXXX")
 
     # use curl to get the html source code of the user's profile page and save it to the temporary file
     # The user agent is needed, as TkikTok will only show a blank page if curl doesn't pretend to be a browser.
@@ -587,11 +610,32 @@ function avatar_mode() {
     # in avatarurl, replace all occurrences of "\u002F" with "/"
     avatarurl=${avatarurl//\\u002F/\/}
 
+    # if the file already exists, add a number to the end of the output name
+    if [[ -f "$output_folder/$username.jpg" ]]
+    then
+
+        # create a new variable output_name with the following pattern: username_videoid.mp4
+        output_name="${username}_$(date +%s).jpg"
+
+        # print a message
+        echo "  \e[93m$username.jpg already exists\e[0m"
+        echo "  File Name: $output_name"
+
+    else
+
+        # create a new variable output_name with the following pattern: username.jpg
+        output_name="${username}.jpg"
+
+        # print a message
+        echo "  File Name: $output_name"        
+
+    fi
+
     # download the avatar image to username.jpg
-    curl "$avatarurl" -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36" -o "$output_folder/$username.jpg"
+    curl "$avatarurl" -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36" -o "$output_folder/$output_name.jpg"
 
     # check if the image was downloaded successfully
-    if [[ ! -f "$output_folder/$username.jpg" ]]
+    if [[ ! -f "$output_folder/$output_name.jpg" ]]
     then
         # if no, print an error message
         echo -e "\033[1;91mDownload failed.\033[0m"
@@ -618,8 +662,10 @@ function live_mode() {
     roomid=""
     jsondata=""
     playlisturl=""
+    live_title=""
     datetime=""
     output_name=""
+    recording_end_time=""
 
     # print an empty line
     echo ""
@@ -670,7 +716,7 @@ function live_mode() {
     echo "  Live URL: $liveurl"
 
     # create a temporary file in the current directory
-    tempfile=$(mktemp)
+    tempfile=$(mktemp "${BASEDIR}/ttd-live.XXXXXX")
 
     # use curl to get the html source code of the live page and save it to the temporary file
     # The user agent is needed, as TkikTok will only show a blank page if curl doesn't pretend to be a browser.
@@ -696,14 +742,23 @@ function live_mode() {
     # print the room id
     echo "  Room ID: $roomid"
 
+    # status message: getting live infos
+    echo -ne "  \e[5mRetrieving live infos...\e[25m\e[0m"
+
     # write the response of "https://www.tiktok.com/api/live/detail/?aid=1988&roomID=${roomId}" to jsondata
     jsondata=$(curl "https://www.tiktok.com/api/live/detail/?aid=1988&roomID=${roomid}" -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36")
 
     # store the JSON object LiveRoomInfo.liveUrl in playlisturl
     playlisturl=$(echo "$jsondata" | jq -r '.LiveRoomInfo.liveUrl')
 
+    # store the JSON object LiveRoomInfo.title in live_title
+    live_title=$(echo "$jsondata" | jq -r '.LiveRoomInfo.title')
+
+    # reset status message
+    echo -ne "\r\033[K"
+
     # print the playlist URL
-    # echo "  Playlist URL: $playlisturl"
+    echo "  Playlist URL: $playlisturl"
 
     # if the playlist URL is empty, something went wrong. Abort.
     if [[ $playlisturl == "" ]]
@@ -713,11 +768,24 @@ function live_mode() {
         live_mode
     fi
 
+    # print the live title
+    # if the title is empty, print "No title"
+    if [[ $live_title == "" ]]
+    then
+        echo "  Stream Title: The host has not set a title."
+    else
+        echo "  Stream Title: $live_title"
+    fi
+
     # get the current date and time in format YYYY-MM-DD_HHMM
     datetime=$(date +"%Y-%m-%d_%H%M")
 
+
+    # output file extension
+    outputext="mp4"             # default is .mp4, source is .ts
+
     # generate the filename: username_datetime.mp4
-    output_name="${username}_${datetime}.mp4"
+    output_name="${username}_${datetime}.${outputext}"
 
     # print the filename
     echo "  Output File: $output_name"
@@ -727,10 +795,24 @@ function live_mode() {
     echo -ne "\n  Downloading...\n\e[90m  Press ctrl+c to stop.\e[0m"
 
     # use ffmpeg to download the video
-    ffmpeg -hide_banner -loglevel quiet -i "$playlisturl" -bsf:a aac_adtstoasc "$output_folder/$output_name"
+    # if outputext is mp4
+    if [[ $outputext == "mp4" ]]
+    then
+        ffmpeg -hide_banner -loglevel quiet -i "$playlisturl" -bsf:a aac_adtstoasc -map_metadata 0 -movflags use_metadata_tags -metadata description="$live_title" "$output_folder/$output_name"
+    else
+        ffmpeg -hide_banner -loglevel quiet -i "$playlisturl" -map_metadata 0 -movflags use_metadata_tags -metadata description="$live_title" "$output_folder/$output_name"
+    fi
 
     # trap ctrl+c and call live_ctrl_c()
     trap live_ctrl_c INT
+
+    echo ""
+
+    # get current time in HH:MM:SS
+    recording_end_time=$(date +"%T")
+
+     
+
 
 
     # delete the temporary file
@@ -738,11 +820,37 @@ function live_mode() {
 
 
     # check if the video was downloaded successfully
-        if [[ ! -f "$output_folder/$output_name" ]]
-        then 
-            # if no, print an error message
-            echo -e "\033[1;91m  Download failed.\033[0m"
+    if [[ ! -f "$output_folder/$output_name" ]]
+    then 
+        # if no, print an error message
+        echo -e "\033[1;91m  Download failed. File was not saved.\033[0m"
+    else
+        # print the time when the download ended
+        echo "  The recording ended at $recording_end_time."
+
+        # if ffprobe is installed, print the duration of the video
+        if command -v ffprobe &> /dev/null
+        then
+
+            # get the duration of the video
+            duration=$(ffprobe -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$output_folder/$output_name")
+
+            # if OS is macOS, use gdate instead of date
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                # run this hell of a command to convert the duration to HH:MM:SS
+                duration="$(date -ju -f %s $duration "+%H:%M:%S")"
+            else
+                # run this other hell of a command to convert the duration to HH:MM:SS
+                duration="$(date -d@$duration -u +%H:%M:%S)"
+            fi
+
+            echo "  Duration of recording: $duration"
+
         fi
+
+    fi
+
+    echo ""
 
     # run the function again
     live_mode
@@ -779,7 +887,7 @@ function main_menu() {
        # show a selection menu with the options "single mode" "batch mode" and save the user input in the variable mode
         echo -e "\n\033[1;95mWhich mode do you want to use?\033[0m"
 
-        modeoptions=("Single Mode" "Batch Mode" "Avatar Mode" "Live Mode" "Restore Mode" "Help" "Exit")
+        modeoptions=("Single Mode" "Batch Mode" "Live Mode" "Avatar Mode" "Restore Mode" "Help" "Exit")
         select_option "${modeoptions[@]}"
         modechoice=$?
 
@@ -793,12 +901,40 @@ function main_menu() {
             batch_mode
         elif [[ "${modeoptions[$modechoice]}" == "Live Mode" ]]
         then
+
+            # check if ffmpeg is installed
+            if ! command -v ffmpeg &> /dev/null
+            then
+                echo ""
+                echo -e "\033[1;91m  ffmpeg is not installed.\033[0m"
+                echo -e "\033[1;91m  Please install ffmpeg to use this feature.\033[0m"
+                echo ""
+                main_menu
+            fi
+
             ask_for_output_folder
             live_mode
+
         elif [[ "${modeoptions[$modechoice]}" == "Avatar Mode" ]]
         then
+
+            # check if OS is macOS
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                # check if ggrep is installed
+                if ! command -v ggrep &> /dev/null
+                then
+                    echo ""
+                    echo -e "\033[1;91m  ggrep is not installed.\033[0m"
+                    echo -e "\033[1;91m  Please install ggrep to use this feature.\033[0m"
+                    echo ""
+                    main_menu
+                fi
+            fi
+
             ask_for_output_folder
             avatar_mode
+
+
         elif [[ "${modeoptions[$modechoice]}" == "Restore Mode" ]]
         then
             echo -e "\033[95m\nNote: Restore Mode is used to (re)download TikToks based on the file name. Existing files will be overwritten. The input is a text file with entries in the following format: <user name>_<video id>.mp4\n\033[0m"
@@ -817,13 +953,13 @@ function main_menu() {
 
         # print a select menu witht he options "Single Mode" "Batch Mode" "Avatar Mode" "Help" "Exit"
         echo -e "\n\033[1;95mWhich mode do you want to use?\033[0m"
-        echo -e "\033[1;95m1) Single Mode\033[0m"
-        echo -e "\033[1;95m2) Batch Mode\033[0m"
-        echo -e "\033[1;95m3) Live Mode\033[0m"
-        echo -e "\033[1;95m4) Avatar Mode\033[0m"
-        echo -e "\033[1;95m5) Restore Mode\033[0m"
-        echo -e "\033[1;95m6) Help\033[0m"
-        echo -e "\033[1;95m7) Exit\033[0m"
+        echo -e " \033[95m1) Single Mode\033[0m"
+        echo -e " \033[95m2) Batch Mode\033[0m"
+        echo -e " \033[95m3) Live Mode\033[0m"
+        echo -e " \033[95m4) Avatar Mode\033[0m"
+        echo -e " \033[95m5) Restore Mode\033[0m"
+        echo -e " \033[95m6) Help\033[0m"
+        echo -e " \033[95m7) Exit\033[0m\n"
 
         # read the user input and save it to the variable mode
         read -rep $'\033[1;95m> \033[0m' mode
@@ -852,15 +988,42 @@ function main_menu() {
          # if the input is "3", "live mode" or "live", run the avatar mode function
         if [[ $mode == "3" ]] || [[ $mode == "live mode" ]] || [[ $mode == "live" ]]
         then
+
+            # check if ffmpeg is installed
+            if ! command -v ffmpeg &> /dev/null
+            then
+                echo ""
+                echo -e "\033[1;91m  ffmpeg is not installed.\033[0m"
+                echo -e "\033[1;91m  Please install ffmpeg to use this feature.\033[0m"
+                echo ""
+                main_menu
+            fi
+
             ask_for_output_folder
             live_mode
+
         fi
 
         # if the input is "4", "avatar mode" or "avatar", run the avatar mode function
         if [[ $mode == "4" ]] || [[ $mode == "avatar mode" ]] || [[ $mode == "avatar" ]]
         then
+
+            # check if OS is macOS
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                # check if ggrep is installed
+                if ! command -v ggrep &> /dev/null
+                then
+                    echo ""
+                    echo -e "\033[1;91m  ggrep is not installed.\033[0m"
+                    echo -e "\033[1;91m  Please install ggrep to use this feature.\033[0m"
+                    echo ""
+                    main_menu
+                fi
+            fi
+
             ask_for_output_folder
             avatar_mode
+
         fi
 
         # if the input is "5", "restore mode" or "restore", run the restore mode function
@@ -975,7 +1138,25 @@ function help_screen() {
         echo "  Script version: $version (running in legacy mode)"
     fi
     echo "  Bash version $BASH_VERSION."
+
     echo "  yt-dlp version: $(yt-dlp --version)"
+
+    # if ffmpeg is installed, print the ffmpeg version
+    if [[ $(command -v ffmpeg) ]]
+    then
+        echo "  ffmpeg version: $(ffmpeg -version | head -n 1 | sed 's/ffmpeg version //' | cut -d " " -f 1)"
+    else
+        echo "  ffmpeg version: No ffmpeg installation found."
+    fi
+
+    # if ffprobe is installed, print the ffprobe version
+    if [[ $(command -v ffprobe) ]]
+    then
+        echo "  ffprobe version: $(ffprobe -version | head -n 1 | sed 's/ffprobe version //' | cut -d " " -f 1)"
+    else
+        echo "  ffprobe version: No ffprobe installation found."
+    fi
+
     # if OS is Linux, print the Linux distribution
     if [[ $OSTYPE == "linux-gnu" ]]
     then
@@ -1084,6 +1265,7 @@ then
     legacy_mode="true"
 fi
 
+
 # check if yt-dlp is up to date
 
 # if check_for_yt-dlp_updates is set to "true", check if yt-dlp is up to date
@@ -1107,25 +1289,38 @@ then
 fi
 
 # check if ffmpeg is installed
-if ! command -v ffmpeg &> /dev/null
+
+# if show_warning_when_ffmpeg_is_not_installed is set to "true", check if ffmpeg is installed
+if [[ $show_warning_when_ffmpeg_is_not_installed == "true" ]]
 then
-    echo -e "\033[1;93mWarning: ffmpeg is not installed.\033[0m"
-    echo -e "\033[1;93mLive Mode won't work, but you can use the other modes.\033[0m"
-    echo ""
+
+    if ! command -v ffmpeg &> /dev/null
+    then
+        echo -e "\033[1;93mWarning: ffmpeg is not installed.\033[0m"
+        echo -e "\033[1;93mLive Mode won't work, but you can use the other modes.\033[0m"
+        echo ""
+    fi
+
 fi
 
-# if the OS is macOS and ggrep is not installed, print a warning
-if [[ $OSTYPE == "darwin"* ]]
+# if the OS is macOS, check if ggrep is installed 
+
+if [[ $show_warning_when_ggrep_is_not_installed == "true" ]]
 then
 
-    if ! command -v ggrep &> /dev/null 
+    if [[ $OSTYPE == "darwin"* ]]
     then
 
-        echo -e "\033[1;93mWarning: GNU grep is not installed.\033[0m"
-        echo -e "\033[1;93mAvatar Mode won't work, but you can use the other modes.\033[0m"
-        echo ""
+        if ! command -v ggrep &> /dev/null 
+        then
 
+            echo -e "\033[1;93mWarning: GNU grep is not installed.\033[0m"
+            echo -e "\033[1;93mAvatar Mode won't work, but you can use the other modes.\033[0m"
+            echo ""
+
+        fi
     fi
+
 fi
 
 
@@ -1133,6 +1328,4 @@ main_menu
 
 
 exit 0
-
-
 
