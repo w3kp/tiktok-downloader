@@ -9,7 +9,7 @@ This Bash script allows you to download TikTok videos without watermarks — bot
 
 Underneath the surface, my script uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for downloading tiktok posts (TikToks) and [ffmpeg](https://ffmpeg.org/) for livestreams (Lives). If you get warnings or downloading fails, check if those tools are installed and up-to-date.
 
-The script is confirmed working on macOS[^1]and Ubuntu, but it should run on all platforms with Bash, yt-dlp and/or ffmpeg installed.
+The script is confirmed working on macOS[^1] and Ubuntu, but it should run on all platforms with Bash, yt-dlp and/or ffmpeg installed.
 
 ## Features
 
