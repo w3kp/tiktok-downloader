@@ -12,15 +12,15 @@ The script is confirmed working on macOS[^1]and Ubuntu, but it should run on all
 
 ## Features
 
-- **Single Mode**: <br />Enter a TikTok video URL and download it to the chosen directory. Input should be in the the following pattern: `https://www.tiktok.com/@<username>/video/<video id>`
-- **Batch Mode**: <br />Paste all video URLs you want to download inside a txt file (one video per line) and tell the script the path to that txt file. (Depending on the OS and other circumstances it may be a good idea to end the text file with an empty line to make sure the last URL gets read successfully. Lines should be in the following pattern: `https://www.tiktok.com/@<username>/video/<video id>`
-- **Live Mode**: <br />Live Mode allows you to download a TikTok livestream by any user. Like in other modes, enter the username or profile URL and the script will handle the rest. Not that the script unfortuantely can't time travel, so the output file will only be from the point you started recording. You can end the recording by pressing ctrl+c, but have caution to only press the keyboard shortcut once, even when it takes some time for the recording to stop. _(Currently stopping a recording prematurely will cause the whole script to quit.)_ Input can be: `username`, `https://www.tiktok.com/@<username>` or `https://www.tiktok.com/@<username>/live`
-- **Avatar Mode**: <br />Enter a TikTok username or the profile URL to download the profile picture of that channel in the highest resolution available. Input can be: `username` or `https://www.tiktok.com/@<username>`
+- **Single Mode**: <br />Enter a TikTok video URL and download it to the chosen directory. <br />The URL should be in the following pattern: `https://www.tiktok.com/@<username>/video/<video id>`
+- **Batch Mode**: <br />Paste all video URLs you want to download inside a txt file (one video per line) and tell the script the path to that txt file. (Depending on the OS and other circumstances it may be a good idea to end the text file with an empty line to make sure the last URL gets read successfully. <br />Lines should be in the following pattern: `https://www.tiktok.com/@<username>/video/<video id>`
+- **Live Mode**: <br />Live Mode allows you to download a TikTok livestream by any user. Like in other modes, enter the username or profile URL and the script will handle the rest. Not that the script unfortuantely can't time travel, so the output file will only be from the point you started recording. You can end the recording by pressing ctrl+c, but have caution to only press the keyboard shortcut once, even when it takes some time for the recording to stop. _(Currently stopping a recording prematurely will cause the whole script to quit.)_ <br />Input can be: `username`, `https://www.tiktok.com/@<username>`, or `https://www.tiktok.com/@<username>/live`
+- **Avatar Mode**: <br />Enter a TikTok username or the profile URL to download the profile picture of that channel in the highest resolution available. <br />Input can be either `username` or `https://www.tiktok.com/@<username>`
 - **Restore Mode** _(experimental)_: <br />Like Batch Mode this mode uses a txt file as input, but this time lines should be formatted like this: `<user name>_<video id>.mp4`. Use it to (re)download TikToks based on the file name, for example if you notice that previously downloaded files are corrupt. The script will translate the file names back to TikTok video URLs and will (re)download them (if still available). Existing files will be overwritten.
 - In all modes the TikToks will be downloaded without watermarks and named as `<user name>_<video id>.mp4`. Live recordings will be named as `<user name>_<recording start time in YYYY-MM-DD_HHMM>.mp4`.
-- The video description or stream title will be integated in the file's metadata (`description` tag).
+- The video description or stream title, respectively, will be written to the file's metadata (`description` tag).
 - If available, subtitles will be embedded into the file.
-- If you always want to download the videos to the same directory, you can point the variable `default_folder` to it and the script will suggest that folder every time you launch it and all you need to do is to confirm with the enter key. If you want to save the files to the same directory as the script resides, set it to `default_folder="$BASEDIR"`.
+- If you always want to download the videos to the same directory, you can point the variable `default_folder` to it and the script will suggest that folder every time you launch it and all you need to do is to confirm with the enter key. If you want to save the files to the same directory as the script resides, set it to `default_folder="$BASEDIR"` — which is also the default behavior.
 
 ## Installation
 
@@ -31,7 +31,7 @@ Simply download [tiktok-downloader.sh](https://raw.githubusercontent.com/anga83/
 If you don't already have it installed you also need to install [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 Ubuntu users should note that Ubuntu 22.04 LTS has an old version of yt-dlp in its package repositories, which may cause the download process to fail. Check the link above to update to the latest version.
 
-If you don't already have it installed you also need to install [ffmpeg](https://ffmpeg.org/) to record TikTok Lives. Optionally, [ffprobe](https://ffmpeg.org/) allows you to see the recording duration.
+To record TikTok Lives you also need [ffmpeg](https://ffmpeg.org/) to be installed. Optionally, [ffprobe](https://ffmpeg.org/) allows you to see the recording duration.
 
 
 ## Usage
