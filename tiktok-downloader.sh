@@ -6,9 +6,10 @@
 # In "Avatar Mode" the script downloads the profile picture of a TikTok channel in the highest resolution available.
 # In "Restore Mode" the script tries to (re)download videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4
 
-version="2.1"
+version="2.2"
 
-# Version 2.1 (2022-10-28) - default folder is now script folder by default, the stream title of TikToks lives gets now written into the description metadata field, Avatar Mode can now handle existing files, now showing recording duration if ffprobe is installed, several fixes to make the script more robust, clearified dependencies and settings description, added more settings
+# Version 2.2 (2022-10-28) - added Music Mode to download sounds/music, script can now handle shortcut URLs (https://vm.tiktok.com/<xxxxxxxxx>), Live Mode writes additional metadata to the downloaded video file (if setting is enabled)
+# Version 2.1 (2022-10-28) - default folder is now script folder by default, the stream title of TikToks lives gets now written into the description metadata field, Avatar Mode can now handle existing files, now showing recording duration if ffprobe is installed, several fixes to make the script more robust, clarified dependencies and settings description, added more settings
 # Version 2.0 (2022-10-27) - added live mode, simplified the option to save files in the script's directory
 # Version 1.8 (2022-10-26) - if user launches the script with the wrong shell the script will now try to launch itself with the correct shell instead of exiting, warning can be suppressed
 # Version 1.7 (2022-10-26) - script now preserves the output folder when changing modes, improved visibility on dark terminal window backgrounds, added more environment checks, added debug information to help screen, improved legacy support (mainly for macOS with built-in bash 3.2)
@@ -19,6 +20,10 @@ version="2.1"
 # Version 1.2 (2022-10-24) - legacy mode for Bash versions < 4.2, check if file already exists before downloading it, check for outdated yt-dlp version
 # Version 1.1 (2022-10-23) - added "Avatar Mode"
 # Version 1.0 (2022-10-23) - initial version
+
+
+# Roadmap:
+#  - stop live recordings by pressing Ctrl+C without killing the script
 
 
 ### Dependencies:
@@ -47,6 +52,8 @@ default_folder="$BASEDIR"                            # set default download fold
 legacy_mode="false"                                  # set to "true" if script won't start, this will disable some features (namely the interactive main menu and output folder suggestions)
 
 check_for_updates="true"                             # set to "false" if you don't want to check for yt-dlp updates at startup (if true, script may take a few seconds longer to start)
+get_additional_metadata="true"                       # set to "false" if you don't want to download additional metadata in Live Mode (if true, recording may take a few seconds longer to start)
+download_music_cover="true"                          # set to "false" if you don't want to download the music cover image in Music Mode
 show_warning_when_shell_is_not_bash="true"           # set to "false" if you don't want to see a warning when the script is not executed with Bash
 show_warning_when_ffmpeg_is_not_installed="true"     # set to "false" if you don't want to see a warning when ffmpeg is not installed
 show_warning_when_ggrep_is_not_installed="true"      # set to "false" if you don't want to see a warning when ggrep is not installed (only macOS)
@@ -56,7 +63,7 @@ show_warning_when_ggrep_is_not_installed="true"      # set to "false" if you don
 ### Traps
 
 # ensures the temporary file gets deleted on exit; reference: https://unix.stackexchange.com/a/181939
-trap 'rm -f "$tempfile"' 0 2 3 15
+trap 'if [ -f "$tempfile" ]; then rm "$tempfile"; fi; if [ -f "$metatempfile" ]; then rm "$metatempfile"; fi' 0 2 3 15
 
 
 ### Functions
@@ -125,6 +132,20 @@ function select_option() {
 }
 
 
+### define jumpto function, used to jump from "restore from backup?" directly to renaming the files
+# source: https://stackoverflow.com/questions/9639103/is-there-a-goto-statement-in-bash
+
+function jumpto
+{
+	label=$1
+	# shellcheck disable=SC2086
+	cmd=$(gsed -n "/$label:/{:a;n;p;ba};" $0 | grep -v ':$')
+	eval "$cmd"
+	exit
+}
+
+
+
 ## function: single mode
 function single_mode() {
 
@@ -152,6 +173,11 @@ function single_mode() {
         echo ""
         main_menu
     fi
+
+    # if the URL starts with "https://vm.tiktok.com/" get the redirect URL
+        if [[ $url == "https://vm.tiktok.com/"* ]]; then
+            url=$(curl -Ls -o /dev/null -w %{url_effective} "$url")
+        fi
 
     # if the URL contains a "?" remove it and everything after it
     if [[ $url == *"?"* ]]; then
@@ -277,6 +303,11 @@ function batch_mode() {
         # if the line is empty, skip it
         if [[ $line == "" ]]; then
             continue
+        fi
+
+        # if the URL starts with "https://vm.tiktok.com/" get the redirect URL
+        if [[ $line == "https://vm.tiktok.com/"* ]]; then
+            line=$(curl -Ls -o /dev/null -w %{url_effective} "$line")
         fi
 
         # if the URL contains a "?" remove it and everything after it
@@ -618,7 +649,7 @@ function avatar_mode() {
         output_name="${username}_$(date +%s).jpg"
 
         # print a message
-        echo "  \e[93m$username.jpg already exists\e[0m"
+        echo "  \033[93m$username.jpg already exists\033[0m"
         echo "  File Name: $output_name"
 
     else
@@ -662,10 +693,13 @@ function live_mode() {
     roomid=""
     jsondata=""
     playlisturl=""
+    flvurl=""
     live_title=""
+    description=""
     datetime=""
     output_name=""
     recording_end_time=""
+    # ffmpeg_pid=""
 
     # print an empty line
     echo ""
@@ -686,6 +720,11 @@ function live_mode() {
     then
         echo ""
         main_menu
+    fi
+
+    # if the URL starts with "https://vm.tiktok.com/" get the redirect URL
+    if [[ $username == "https://vm.tiktok.com/"* ]]; then
+        username=$(curl -Ls -o /dev/null -w %{url_effective} "$username")
     fi
 
     # if the URL contains a "?" remove it and everything after it
@@ -743,13 +782,18 @@ function live_mode() {
     echo "  Room ID: $roomid"
 
     # status message: getting live infos
-    echo -ne "  \e[5mRetrieving live infos...\e[25m\e[0m"
+    echo -ne "  \033[5mRetrieving live infos...\033[25m\033[0m"
 
     # write the response of "https://www.tiktok.com/api/live/detail/?aid=1988&roomID=${roomId}" to jsondata
     jsondata=$(curl "https://www.tiktok.com/api/live/detail/?aid=1988&roomID=${roomid}" -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36")
 
     # store the JSON object LiveRoomInfo.liveUrl in playlisturl
     playlisturl=$(echo "$jsondata" | jq -r '.LiveRoomInfo.liveUrl')
+
+    # get the flvurl, by replacing "https" with "http" and ".m3u8" with ".flv" in playlisturl
+    # source: https://github.com/Pauloo27/tiktok-live/blob/master/index.js
+    flvurl=${playlisturl/https/http}
+    flvurl=${flvurl/.m3u8/.flv}
 
     # store the JSON object LiveRoomInfo.title in live_title
     live_title=$(echo "$jsondata" | jq -r '.LiveRoomInfo.title')
@@ -758,12 +802,13 @@ function live_mode() {
     echo -ne "\r\033[K"
 
     # print the playlist URL
-    echo "  Playlist URL: $playlisturl"
+    # echo "  Playlist URL: $playlisturl"
 
     # if the playlist URL is empty, something went wrong. Abort.
     if [[ $playlisturl == "" ]]
     then
         echo -e "\n\033[1;91mError: Couldn't get playlist URL.\033[0m"
+        echo -e "\033[91mThis live might be over, but sometimes TikTok doesn't allow accessing the stream via public API. Try again later. \033[0m"
         echo ""
         live_mode
     fi
@@ -792,26 +837,116 @@ function live_mode() {
 
 
 
-    echo -ne "\n  Downloading...\n\e[90m  Press ctrl+c to stop.\e[0m"
+    echo -ne "\n  Downloading...\n\033[90m  Press ctrl+c to stop.\033[0m"
+
+    # trap ctrl+c and call live_ctrl_c()
+    # trap live_ctrl_c INT
+
+    description="User: $username\nRoom ID: $roomid\nLive Title: $live_title"
+
+    # get metadata if get_additional_metadata is true
+    if [[ $get_additional_metadata == true ]]
+    then
+
+        start_time=""
+
+        model=""
+        platform=""
+        os_version=""
+
+        # create a temporary file in the current directory
+        metatempfile=$(mktemp "${BASEDIR}/ttd-meta.XXXXXX")
+
+        ffmpeg -y -hide_banner -loglevel quiet -i "$flvurl" -f ffmetadata "$metatempfile"
+
+        # if OS is macOS, use ggrep, otherwise use grep; example: '(?<=model=).+' matches everything after "model="
+        if [[ $OSTYPE == "darwin"* ]]
+        then
+            start_time=$(ggrep -oP '(?<=start_time=).+' "$metatempfile")
+            # echo "DEBUG: original start_time: $start_time"
+            model=$(ggrep -oP '(?<=model=).+' "$metatempfile")
+            platform=$(ggrep -oP '(?<=platform=).+' "$metatempfile")
+            os_version=$(ggrep -oP '(?<=os_version=).+' "$metatempfile")
+        else
+            start_time=$(grep -oP '(?<=start_time=).+' "$metatempfile")
+            model=$(grep -oP '(?<=model=).+' "$metatempfile")
+            platform=$(grep -oP '(?<=platform=).+' "$metatempfile")
+            os_version=$(grep -oP '(?<=os_version=).+' "$metatempfile")
+        fi
+
+        # divide start_time by 1000
+        start_time=$(echo "$start_time" | awk '{print $1/1000}')
+        #echo "DEBUG: start_time/1000: $start_time"
+
+        # convert start_time to integer
+        start_time=$(printf "%.0f" "$start_time")
+        # echo "DEBUG: start_time as integer: $start_time"
+
+        # convert the start time from epoch to human readable format
+        start_time=$(date -r $start_time +"%Y-%m-%d %H:%M:%S")
+        # echo "DEBUG: start_time human readable: $start_time"
+
+        # add metadata to description, if it's not empty
+        if [[ $start_time != "" ]]
+        then
+            description="$description\nLive Start Time: $start_time"
+        fi
+
+        if [[ $model != "" ]]
+        then
+            description="$description\n\nDevice Information:\n Model: $model"
+        fi
+
+        if [[ $platform != "" ]]
+        then
+            description="$description\n Platform: $platform"
+        fi
+
+        if [[ $os_version != "" ]]
+        then
+            description="$description\n OS Version: $os_version"
+        fi
+
+
+        # delete the temporary file
+        # rm "$metatempfile"
+
+    fi
 
     # use ffmpeg to download the video
     # if outputext is mp4
     if [[ $outputext == "mp4" ]]
     then
-        ffmpeg -hide_banner -loglevel quiet -i "$playlisturl" -bsf:a aac_adtstoasc -map_metadata 0 -movflags use_metadata_tags -metadata description="$live_title" "$output_folder/$output_name"
+        ffmpeg -hide_banner -loglevel quiet -i "$playlisturl" -bsf:a aac_adtstoasc -map_metadata 0 -metadata description="$description" "$output_folder/$output_name"
+        # & ffmpeg_pid=$!
+        # wait $ffmpeg_pid
     else
-        ffmpeg -hide_banner -loglevel quiet -i "$playlisturl" -map_metadata 0 -movflags use_metadata_tags -metadata description="$live_title" "$output_folder/$output_name"
+        ffmpeg -hide_banner -loglevel quiet -i "$playlisturl" -map_metadata 0 -metadata description="$description" "$output_folder/$output_name"
+        # & ffmpeg_pid=$!
+        # wait $ffmpeg_pid
     fi
 
-    # trap ctrl+c and call live_ctrl_c()
-    trap live_ctrl_c INT
+    # reset trap
+    # trap - INT
+
+    # jump point for ctrl+c
+    livestopped: &> /dev/null
+
+    # echo "ffmpeg PID: $!"
 
     echo ""
+
+    # reset status message
+    echo -ne "\r\033[K"
+
+    # write new status message
+    # reset status message
+    echo -ne "  \033[90mRecording stopped. Checking if download was successful...\033[0m"
 
     # get current time in HH:MM:SS
     recording_end_time=$(date +"%T")
 
-     
+    
 
 
 
@@ -821,12 +956,22 @@ function live_mode() {
 
     # check if the video was downloaded successfully
     if [[ ! -f "$output_folder/$output_name" ]]
-    then 
+    then
+    
+        # reset status message
+        echo -ne "\r\033[K"
+        echo ""
+
         # if no, print an error message
-        echo -e "\033[1;91m  Download failed. File was not saved.\033[0m"
+        echo -e "\033[1;91m  Download failed. No file was saved.\033[0m"
     else
+
+        # reset status message
+        echo -ne "\r\033[K"
+        echo ""
+
         # print the time when the download ended
-        echo "  The recording ended at $recording_end_time."
+        echo -e "  The recording ended at $recording_end_time."
 
         # if ffprobe is installed, print the duration of the video
         if command -v ffprobe &> /dev/null
@@ -834,6 +979,9 @@ function live_mode() {
 
             # get the duration of the video
             duration=$(ffprobe -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$output_folder/$output_name")
+
+            # convert the duration to integer
+            duration=${duration%.*}
 
             # if OS is macOS, use gdate instead of date
             if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -844,13 +992,12 @@ function live_mode() {
                 duration="$(date -d@$duration -u +%H:%M:%S)"
             fi
 
-            echo "  Duration of recording: $duration"
+
+            echo -e "  \033[92mDuration of recording: $duration\033[0m"
 
         fi
 
     fi
-
-    echo ""
 
     # run the function again
     live_mode
@@ -858,21 +1005,332 @@ function live_mode() {
 }
 
 
-function live_ctrl_c() {
 
-    # delete the temporary file
-    rm "$tempfile"
+## function: avatar mode
+function music_mode() {
+
+    musicurl=""
+    playurl=""
+    title=""
+    author=""
+    album=""
+    duration=""
+    coverurl=""
+    filename_pattern=""
+    m4a_filename=""
+    jpg_filename=""
 
 
-    # check if the video was downloaded successfully
-        if [[ ! -f "$output_folder/$output_name" ]]
-        then 
-            # if no, print an error message
-            echo -e "\033[1;91m  Download failed.\033[0m"
+    # ask user for TikTok username
+    echo -e "\n\033[1;95mEnter TikTok sound/music URL: \033[0m"
+    read -rep $'\033[1;95m> \033[0m' musicurl
+
+    # if the input is empty, "q", "quit" or "exit", exit the program
+    if [[ $musicurl == "" ]] || [[ $musicurl == "exit" ]] || [[ $musicurl == "quit" ]] || [[ $musicurl == "q" ]]
+    then
+        echo ""
+        exit 0
+    fi
+
+    # if the input is "b" or "back", go back to the main menu
+    if [[ $musicurl == "b" ]] || [[ $musicurl == "back" ]]
+    then
+        echo ""
+        main_menu
+    fi
+
+    # if the URL starts with "https://vm.tiktok.com/" get the redirect URL
+    if [[ $musicurl == "https://vm.tiktok.com/"* ]]; then
+        musicurl=$(curl -Ls -o /dev/null -w %{url_effective} "$musicurl")
+    fi
+
+    # if the URL doesn't start with "https://www.tiktok.com/music/", tell the user that the URL is invalid and repeat the function
+    if [[ $musicurl != "https://www.tiktok.com/music/"* ]]; then
+        echo -e "\n\033[1;91mInvalid URL!\033[0m"
+        echo -e" \033[91mURL has to start with 'https://www.tiktok.com/music/'\033[0m"
+        echo ""
+        music_mode
+    fi
+
+    # if the musicurl contains a "?" remove it and everything after it
+    if [[ $musicurl == *"?"* ]]; then
+        userurl=$(echo $musicurl | cut -d'?' -f1)
+    else
+        musicurl=$musicurl
+    fi
+
+    # create a temporary file in the current directory
+    tempfile=$(mktemp "${BASEDIR}/ttd-music.XXXXXX")
+
+    # use curl to get the html source code of the music page and save it to the temporary file
+    # The user agent is needed, as TkikTok will only show a blank page if curl doesn't pretend to be a browser.
+    curl "$userurl" -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36" > "$tempfile"
+
+    
+    # if "ggrep" is installed, use it, otherwise use "grep"
+    if command -v ggrep &> /dev/null
+    then  
+        
+        # in the temporary file, look for the JSON object MusicModule.musicInfo.music.playUrl and save that value to playurl
+        playurl=$(ggrep -oP '(?<="playUrl":")[^"]*' "$tempfile")
+        # the result contains the desired vlue multiple times, so we only want the first one
+        playurl=$(echo "$playurl" | head -n 1)
+        # in playurl, replace all occurrences of "\u002F" with "/"
+        playurl=${playurl//\\u002F/\/}
+
+
+        # if download_music_cover is true
+        if [[ $download_music_cover == true ]]
+        then
+
+            # in the temporary file, look for the JSON object MusicModule.musicInfo.music.coverLarge and save that value to playurl
+            coverurl=$(ggrep -oP '(?<="coverLarge":")[^"]*' "$tempfile")
+            # the result contains the desired vlue multiple times, so we only want the first one
+            coverurl=$(echo "$coverurl" | head -n 1)
+            # in coverurl, replace all occurrences of "\u002F" with "/"
+            coverurl=${coverurl//\\u002F/\/}
+
         fi
 
-    # run the function again
-    live_mode
+
+
+        # in the temporary file, look for the JSON object MusicModule.musicInfo.music.title and save that value to title
+        title=$(ggrep -oP '(?<="title":")[^"]*' "$tempfile")
+        # the result contains the desired vlue multiple times, look for the second one
+        title=$(echo "$title" | head -n 2 | tail -n 1)
+
+        # in the temporary file, look for the JSON object MusicModule.musicInfo.music.authorName and save that value to author
+        author=$(ggrep -oP '(?<="authorName":")[^"]*' "$tempfile")
+        # the result contains the desired vlue multiple times, look for the first one
+        author=$(echo "$author" | head -n 1)
+
+        # in the temporary file, look for the JSON object MusicModule.musicInfo.music.album and save that value to album
+        album=$(ggrep -oP '(?<="album":")[^"]*' "$tempfile")
+        # the result contains the desired vlue multiple times, look for the first one
+        album=$(echo "$album" | head -n 1)
+
+        # in the temporary file, look for the JSON object MusicModule.musicInfo.music.duration and save that value to duration, only get numeric characters
+        duration=$(ggrep -oP '(?<="duration":)[0-9]*' "$tempfile" | head -n 1)
+
+    else
+        
+        # in the temporary file, look for the JSON object MusicModule.musicInfo.music.playUrl and save that value to playurl
+        playurl=$(grep -oP '(?<="playUrl":")[^"]*' "$tempfile")
+        # the result contains the desired vlue multiple times, so we only want the first one
+        playurl=$(echo "$playurl" | head -n 1)
+        # in playurl, replace all occurrences of "\u002F" with "/"
+        playurl=${playurl//\\u002F/\/}
+
+        # if download_music_cover is true
+        if [[ $download_music_cover == true ]]
+        then
+
+            # in the temporary file, look for the JSON object MusicModule.musicInfo.music.coverLarge and save that value to playurl
+            coverurl=$(ggrep -oP '(?<="coverLarge":")[^"]*' "$tempfile")
+            # the result contains the desired vlue multiple times, so we only want the first one
+            coverurl=$(echo "$coverurl" | head -n 1)
+            # in coverurl, replace all occurrences of "\u002F" with "/"
+            coverurl=${coverurl//\\u002F/\/}
+
+
+        fi
+
+        # in the temporary file, look for the JSON object MusicModule.musicInfo.music.title and save that value to title
+        title=$(grep -oP '(?<="title":")[^"]*' "$tempfile")
+        # the result contains the desired vlue multiple times, look for the second one
+        title=$(echo "$title" | head -n 2 | tail -n 1)
+
+        # in the temporary file, look for the JSON object MusicModule.musicInfo.music.authorName and save that value to author
+        author=$(grep -oP '(?<="authorName":")[^"]*' "$tempfile")
+        # the result contains the desired vlue multiple times, look for the first one
+        author=$(echo "$author" | head -n 1)
+
+        # in the temporary file, look for the JSON object MusicModule.musicInfo.music.album and save that value to album
+        album=$(grep -oP '(?<="album":")[^"]*' "$tempfile")
+        # the result contains the desired vlue multiple times, look for the first one
+        album=$(echo "$album" | head -n 1)
+
+        # in the temporary file, look for the JSON object MusicModule.musicInfo.music.duration and save that value to duration, only get numeric characters
+        duration=$(grep -oP '(?<="duration":)[0-9]*' "$tempfile" | head -n 1)
+
+    fi
+
+    # remove the temporary file
+    rm "$tempfile"
+
+    # check if the playurl variable is empty, if it is, tell the user that the URL is invalid and repeat the function
+    if [[ -z $playurl ]]; then
+        echo -e "  \n\033[1;91mError: Couldn't receive music.\033[0m"
+        echo ""
+        music_mode
+    fi
+
+    # check if the title variable is empty, if it is, overwrite it with "Unknown Title"
+    if [[ -z $title ]]; then
+        title="Unknown Title"
+        echo -e "  Title: (Unknown)"
+    else
+        echo -e "  Title: $title"
+    fi
+
+    # check if the author variable is empty, if it is, overwrite it with "Unknown Artist"
+    if [[ -z $author ]]; then
+        author="Unknown Artist"
+        echo -e "  Artist: (Unknown)"
+    else
+        echo -e "  Artist: $author"
+    fi
+
+    # check if the album variable is empty, if it is, overwrite it with "Unknown Album"
+    if [[ -z $album ]]; then
+        album="Unknown Album"
+        echo -e "  Album: (Unknown)"
+    else
+        echo -e "  Album: $album"
+    fi
+
+    # print the duration
+    echo -e "  Duration: $duration seconds"
+    
+
+    # if download_music_cover is true
+    if [[ $download_music_cover == true ]]
+    then
+
+        # check if the coverurl variable is empty, if it is, print a message and leave the coverurl variable empty
+        if [[ -z $coverurl ]]; then
+            echo -e "  Couldn't receive cover art."
+        else
+            echo "  Cover found."
+        fi
+
+    fi
+
+
+    # generate filename from Title and Author
+    filename_pattern="${title} - ${author}"
+
+    # replace all characters that are not allowed in filenames with an underscore, spaces are allowed
+    filename_pattern=${filename_pattern//[^a-zA-Z0-9 -_]/_}
+    # echo "DEBUG: filename_pattern: $filename_pattern"
+
+    m4a_filename="${filename_pattern}.m4a"
+    
+    # if the music file already exists, add a number to the end of the output name
+    if [[ -f "$output_folder/$filename_pattern.m4a" ]]
+    then
+
+        m4a_filename="${filename_pattern}_$(date +%s).m4a"
+
+        # print a message
+        echo "  \033[93m$filename_pattern.m4a already exists\033[0m"
+        echo "  Music File Name: $m4a_filename"
+
+    else
+
+        m4a_filename="${filename_pattern}.m4a"
+
+        # print a message
+        echo "  Music File Name: $m4a_filename"        
+
+    fi
+
+
+    # if download_music_cover is true
+    if [[ $download_music_cover == true ]]
+    then
+
+        jpg_filename="${filename_pattern}.jpg"
+
+         # if the cover file already exists, add a number to the end of the output name
+        if [[ -f "$output_folder/$filename_pattern.jpg" ]]
+        then
+
+            jpg_filename="${filename_pattern}_$(date +%s).jpg"
+
+            # print a message
+            echo "  \033[93m$filename_pattern.jpg already exists\033[0m"
+            echo "  Cover File Name: $jpg_filename"
+
+        else
+
+            jpg_filename="${filename_pattern}.jpg"
+
+            # print a message
+            echo "  Cover File Name: $jpg_filename"        
+
+        fi
+
+        # download the cover image if the coverurl variable is not empty
+        if [[ ! -z $coverurl ]]; then
+
+            # echo "  DEBUG: coverurl: $coverurl"
+
+            curl "$coverurl" -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36" -o "$output_folder/$jpg_filename"
+
+            # check if the image was downloaded successfully
+            if [[ ! -f "$output_folder/$jpg_filename" ]]
+            then
+                # if no, print an error message
+                echo -e "  \033[1;91mCover download failed.\033[0m"
+            fi
+
+        fi
+
+    fi
+
+
+    # # if jpg_filename is not empty, set the cover art metadata
+    # if [[ -f "$output_folder/$jpg_filename" ]]; then
+
+    #     # use ffmpeg to download playurl and save it as m4a_filename, use the cover image as album art, and set the title, album and artist metadata
+    #     ffmpeg -i "$playurl" -i "$output_folder/$jpg_filename" -map 0:0 -map 1:0 -c copy -metadata title="$title" -metadata album="$album" -metadata artist="$author" -metadata:s:v title="Album cover" -metadata:s:v comment="Cover (Front)" "$output_folder/$m4a_filename"
+
+    # else
+
+        # use ffmpeg to download playurl and save it as m4a_filename, and set the title, album and artist metadata
+        ffmpeg -hide_banner -loglevel quiet -i "$playurl" -c copy -metadata title="$title" -metadata album="$album" -metadata artist="$author" "$output_folder/$m4a_filename"
+
+    # fi
+
+
+    # check if the music was downloaded successfully
+    if [[ ! -f "$output_folder/$m4a_filename" ]]
+    then
+        # if no, print an error message
+        echo -e "  \033[1;91mMusic download failed.\033[0m"
+    fi
+
+
+    # delete the cover image if it was downloaded
+    # if [[ -f "$output_folder/$jpg_filename" ]]
+    # then
+    #     rm "$output_folder/$jpg_filename"
+    # fi
+
+    # print an empty line
+    echo ""
+
+    # repeat the function
+    music_mode
+
+
+}
+
+
+function live_ctrl_c() {
+
+    # reset status message
+    echo -ne "\r\033[K"
+
+    # write new status message
+    # reset status message
+    echo -ne "  \033[90mReceived stop signal. Please wait...\033[0m"
+
+    # kill ffmpeg
+    # kill -9 $ffmpeg_pid || echo "ffmpeg is not running."
+
+    jumpto livestopped
 
 }
 
@@ -887,7 +1345,7 @@ function main_menu() {
        # show a selection menu with the options "single mode" "batch mode" and save the user input in the variable mode
         echo -e "\n\033[1;95mWhich mode do you want to use?\033[0m"
 
-        modeoptions=("Single Mode" "Batch Mode" "Live Mode" "Avatar Mode" "Restore Mode" "Help" "Exit")
+        modeoptions=("Single Mode" "Batch Mode" "Live Mode" "Avatar Mode" "Music Mode" "Restore Mode" "Help" "Exit")
         select_option "${modeoptions[@]}"
         modechoice=$?
 
@@ -934,6 +1392,35 @@ function main_menu() {
             ask_for_output_folder
             avatar_mode
 
+        elif [[ "${modeoptions[$modechoice]}" == "Music Mode" ]]
+        then
+
+            # check if OS is macOS
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                # check if ggrep is installed
+                if ! command -v ggrep &> /dev/null
+                then
+                    echo ""
+                    echo -e "\033[1;91m  ggrep is not installed.\033[0m"
+                    echo -e "\033[1;91m  Please install ggrep to use this feature.\033[0m"
+                    echo ""
+                    main_menu
+                fi
+            fi
+
+            # check if ffmpeg is installed
+            if ! command -v ffmpeg &> /dev/null
+            then
+                echo ""
+                echo -e "\033[1;91m  ffmpeg is not installed.\033[0m"
+                echo -e "\033[1;91m  Please install ffmpeg to use this feature.\033[0m"
+                echo ""
+                main_menu
+            fi
+
+            ask_for_output_folder
+            music_mode
+
 
         elif [[ "${modeoptions[$modechoice]}" == "Restore Mode" ]]
         then
@@ -957,9 +1444,10 @@ function main_menu() {
         echo -e " \033[95m2) Batch Mode\033[0m"
         echo -e " \033[95m3) Live Mode\033[0m"
         echo -e " \033[95m4) Avatar Mode\033[0m"
-        echo -e " \033[95m5) Restore Mode\033[0m"
-        echo -e " \033[95m6) Help\033[0m"
-        echo -e " \033[95m7) Exit\033[0m\n"
+        echo -e " \033[95m5) Music Mode\033[0m"
+        echo -e " \033[95m6) Restore Mode\033[0m"
+        echo -e " \033[95m7) Help\033[0m"
+        echo -e " \033[95m8) Exit\033[0m\n"
 
         # read the user input and save it to the variable mode
         read -rep $'\033[1;95m> \033[0m' mode
@@ -985,7 +1473,7 @@ function main_menu() {
             batch_mode
         fi
 
-         # if the input is "3", "live mode" or "live", run the avatar mode function
+         # if the input is "3", "live mode" or "live", run the live mode function
         if [[ $mode == "3" ]] || [[ $mode == "live mode" ]] || [[ $mode == "live" ]]
         then
 
@@ -1026,8 +1514,40 @@ function main_menu() {
 
         fi
 
-        # if the input is "5", "restore mode" or "restore", run the restore mode function
-        if [[ $mode == "5" ]] || [[ $mode == "restore mode" ]] || [[ $mode == "restore" ]]
+        # if the input is "5", "music mode" or "music", run the music mode function
+        if [[ $mode == "5" ]] || [[ $mode == "music mode" ]] || [[ $mode == "music" ]]
+        then
+
+            # check if OS is macOS
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                # check if ggrep is installed
+                if ! command -v ggrep &> /dev/null
+                then
+                    echo ""
+                    echo -e "\033[1;91m  ggrep is not installed.\033[0m"
+                    echo -e "\033[1;91m  Please install ggrep to use this feature.\033[0m"
+                    echo ""
+                    main_menu
+                fi
+            fi
+
+            # check if ffmpeg is installed
+            if ! command -v ffmpeg &> /dev/null
+            then
+                echo ""
+                echo -e "\033[1;91m  ffmpeg is not installed.\033[0m"
+                echo -e "\033[1;91m  Please install ffmpeg to use this feature.\033[0m"
+                echo ""
+                main_menu
+            fi
+
+            ask_for_output_folder
+            music_mode
+
+        fi
+
+        # if the input is "6", "restore mode" or "restore", run the restore mode function
+        if [[ $mode == "6" ]] || [[ $mode == "restore mode" ]] || [[ $mode == "restore" ]]
         then        
             echo -e "\033[95m\nNote: Restore Mode is used to (re)download TikToks based on the file name. Existing files will be overwritten. The input is a text file with entries in the following format: <user name>_<video id>.mp4\n\033[0m"
 
@@ -1035,14 +1555,14 @@ function main_menu() {
             restore_mode
         fi
 
-        # if the input is "6", "help" or "h", run the help screen function
-        if [[ $mode == "6" ]] || [[ $mode == "help" ]] || [[ $mode == "h" ]]
+        # if the input is "7", "help" or "h", run the help screen function
+        if [[ $mode == "7" ]] || [[ $mode == "help" ]] || [[ $mode == "h" ]]
         then
             help_screen
         fi
 
-        # if the input is "7", "exit" or "q", exit the program
-        if [[ $mode == "7" ]] || [[ $mode == "exit" ]] || [[ $mode == "q" ]]
+        # if the input is "8", "exit" or "q", exit the program
+        if [[ $mode == "8" ]] || [[ $mode == "exit" ]] || [[ $mode == "q" ]]
         then
             echo ""
             exit 0
@@ -1116,6 +1636,8 @@ function help_screen() {
     echo -e " In live mode, you can download a TikTok livestream by entering the username or profile URL."
     echo -e "\033[1mAvatar Mode\033[0m"
     echo -e " In avatar mode, you can download the profile picture of a TikTok user by entering the TikTok username."
+    echo -e "\033[1mMusic Mode\033[0m"
+    echo -e " In music mode, you can download a TikTok sound by entering the TikTok music URL."
     echo -e "\033[1mRestore Mode\033[0m"
     echo -e " In restore mode, you can (re)download TikTok videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4"
     echo ""
