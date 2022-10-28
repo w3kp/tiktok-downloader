@@ -24,9 +24,10 @@ The script is confirmed working on macOS[^1]and Ubuntu, but it should run on all
 
 #### Other features
 - In all modes the TikToks will be downloaded without watermarks and named as `<user name>_<video id>.mp4`. Live recordings will be named as `<user name>_<recording start time in YYYY-MM-DD_HHMM>.mp4`.
-- The video description or stream title, respectively, will be written to the file's metadata (`description` tag).
+- The video description or stream title, respectively, will be written to the file's metadata (`description` tag). In Live Mode the user can opt to write additional information (stream start time and host's device information) to the recording.
 - If available, subtitles will be embedded into the file.
 - If you always want to download the videos to the same directory, you can point the variable `default_folder` to it and the script will suggest that folder every time you launch it and all you need to do is to confirm with the enter key. If you want to save the files to the same directory as the script resides, set it to `default_folder="$BASEDIR"` — which is also the default behavior.
+- At the top of the script, you can find settings, which you can switch between `true` and `false` depending on your needs. For example, if you never intend to use Live Mode, you may want to supress the "ffmpeg is not installed" warning when starting the script.
 
 ## Installation
 
