@@ -689,18 +689,18 @@ function live_mode() {
     fi
 
     # if the URL contains a "?" remove it and everything after it
-    if [[ $url == *"?"* ]]; then
-        url=$(echo $url | cut -d'?' -f1)
+    if [[ $username == *"?"* ]]; then
+        username=$(echo "$username" | cut -d'?' -f1)
     fi
 
     # strip spaces from the URL
-    url=$(echo "$url" | tr -d '[:space:]')
+    username=$(echo "$username" | tr -d '[:space:]')
 
 
     # if the URL starts with "https://www.tiktok.com/@", extract the username
-    if [[ $url == "https://www.tiktok.com/@"* ]]; then
+    if [[ $username == "https://www.tiktok.com/@"* ]] || [[ $username == "https://tiktok.com/@"* ]]; then
 
-        username=$(echo $url | cut -d'@' -f2 | cut -d'/' -f1)
+        username=$(echo "$username" | cut -d'@' -f2 | cut -d'/' -f1)
 
     fi
 
