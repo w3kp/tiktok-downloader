@@ -4,6 +4,7 @@
 # The script has both a mode for downloading a single video and a mode to download all videos passed to the script via a text file.
 # "Live Mode" allows the user to download a running TikTok live stream. Note that the recording will only start after the script has been started.
 # In "Avatar Mode" the script downloads the profile picture of a TikTok channel in the highest resolution available.
+# In "Music Mode" the script downloads the sound file of a TikTok sound / music snippet.
 # In "Restore Mode" the script tries to (re)download videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4
 
 version="2.2"
