@@ -7,8 +7,9 @@
 # In "Music Mode" the script downloads the sound file of a TikTok sound / music snippet.
 # In "Restore Mode" the script tries to (re)download videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4
 
-version="2.2"
+version="2.3"
 
+# Version 2.3 (2022-10-29) - updated the selection menu to the version by RobertMcReed (https://gist.github.com/RobertMcReed/05b2dad13e20bb5648e4d8ba356aa60e) which allows the user to select the desired option by pressing the corresponding number key, overwriting files in Restore Mode is now optional, renamed Music Mode to Sound Mode to match TikTok terminology, improved Windows support, several fixes and improvements
 # Version 2.2 (2022-10-28) - added Music Mode to download sounds/music, script can now handle shortcut URLs (https://vm.tiktok.com/<xxxxxxxxx>), Live Mode writes additional metadata to the downloaded video file (if setting is enabled)
 # Version 2.1 (2022-10-28) - default folder is now script folder by default, the stream title of TikToks lives gets now written into the description metadata field, Avatar Mode can now handle existing files, now showing recording duration if ffprobe is installed, several fixes to make the script more robust, clarified dependencies and settings description, added more settings
 # Version 2.0 (2022-10-27) - added live mode, simplified the option to save files in the script's directory
@@ -28,32 +29,51 @@ version="2.2"
 #   - yt-dlp (https://github.com/yt-dlp/yt-dlp)             # needed for downloading TikTok videos
 #   - ffmpeg (https://ffmpeg.org)                           # needed for downloading TikTok lives and sounds
 #
-#   on macOS hosts additionally required:
-#   - ggrep (https://formulae.brew.sh/formula/grep)         # needed for downloading TikTok lives, avatar images and sounds
+#   Other required tools that are already installed on most systems, but might have to be added on some (mainly Cygwin and other Bash on Windows layers):
+#   - jq, curl, rev, sed, grep
+#
+#     on macOS hosts you have to install the GNU version of grep via Homebrew (https://brew.sh), since the built-in version is missing features:
+#     - ggrep (https://formulae.brew.sh/formula/grep)       # needed for downloading TikTok lives, avatar images and sounds
 #
 #   Optional:
 #   - ffprobe (https://ffmpeg.org)                          # needed for showing the recording duration of TikTok lives
 #   - bash >= 4.2                                           # needed for interactive main menu
 
 
-### Variables:
+### Internal Variables:
 
-BASEDIR=$(dirname "$0")     # do not edit this line
-output_folder=""            # dot not edit this line
+BASEDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )     # only edit this line if you know what you do
+output_folder=""                                                                 # leave this empty, to set the default output folder use the setting below
+
+
+### Paths
+# macOS and Linux users usaually do not need to change these paths since those programs are installed in a PATH directory by default.
+# Windows users using Cygwin, MinGW64 or Git Bash need to change these paths to the correct location of the programs including the .exe extension.
+#   example: if yt-dlp.exe is in the same folder as this script, edit the following line like this: ytdlp_path="$BASEDIR/yt-dlp.exe"
+
+ytdlp_path="yt-dlp"
+ffmpeg_path="ffmpeg"
+ffprobe_path="ffprobe"
 
 
 ### Settings
 
 default_folder="$BASEDIR"                            # set default download folder, leave empty for empty prompt // default_folder="$BASEDIR" will save files in the script's folder
+                                                     # on Cygwin you need to set default_folder="." to achieve this behavior
 
 legacy_mode="false"                                  # set to "true" if script won't start, this will disable some features (namely the interactive main menu and output folder suggestions)
 
 check_for_updates="true"                             # set to "false" if you don't want to check for yt-dlp updates at startup (if true, script may take a few seconds longer to start)
 get_additional_metadata="true"                       # set to "false" if you don't want to download additional metadata in Live Mode (if true, recording may take a few seconds longer to start)
 download_music_cover="true"                          # set to "false" if you don't want to download the music cover image in Music Mode
-show_warning_when_shell_is_not_bash="true"           # set to "false" if you don't want to see a warning when the script is not executed with Bash
+overwrite_existing_files_in_restore_mode="true"     # set to "fals" if you don't want to overwrite existing files in Restore Mode
 show_warning_when_ffmpeg_is_not_installed="true"     # set to "false" if you don't want to see a warning when ffmpeg is not installed
 show_warning_when_ggrep_is_not_installed="true"      # set to "false" if you don't want to see a warning when ggrep is not installed (only macOS)
+
+disable_shell_rerouting="false"                      # set to "true" if you experience a error loop when starting the script (e.g. when using Bash on Windows layers)
+show_warning_when_shell_is_not_bash="true"           # set to "false" if you don't want to see a warning when the script is not executed with Bash
+
+user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36"      # usually you don't need to change this, but if TikTok will block "old" browsers in the future you can change this to a newer user agent string
 
 
 
@@ -66,66 +86,112 @@ trap 'if [ -f "$tempfile" ]; then rm "$tempfile"; fi; if [ -f "$metatempfile" ];
 ### Functions
 
 ## define select menu function
-# source: https://unix.stackexchange.com/questions/146570/arrow-key-enter-menu
+# originally written by Alexander Klimetschek: https://unix.stackexchange.com/questions/146570/arrow-key-enter-menu
+# adated by RobertMcReed: https://gist.github.com/RobertMcReed/05b2dad13e20bb5648e4d8ba356aa60e
+# some modifications by me
 
-# shellcheck disable=SC1087,SC2059,SC2034,SC2162,SC2086,SC2162,SC2155,SC2006,SC2004
-function select_option() {
+# shellcheck disable=SC1087,SC2059,SC2034,SC2162,SC2086,SC2162,SC2155,SC2006,SC2004,SC2053,SC2154
+function select_option {
+  #local header="\nAdd A Header\nWith\nAs Many\nLines as you want"      # uncommented
+  #header+="\n\nPlease choose an option:\n\n"       # uncommented
+  #printf "$header"     # uncommented
+	options=("$@")
 
-    # little helpers for terminal print control and key input
-    ESC=$( printf "\033")
-    cursor_blink_on()  { printf "$ESC[?25h"; }
-    cursor_blink_off() { printf "$ESC[?25l"; }
-    cursor_to()        { printf "$ESC[$1;${2:-1}H"; }
-    print_option()     { printf "   $1 "; }
-    print_selected()   { printf "  $ESC[7m $1 $ESC[27m"; }
-    get_cursor_row()   { IFS=';' read -sdR -p $'\033[6n' ROW COL; echo ${ROW#*[}; }
-    key_input()        { read -s -n3 key 2>/dev/null >&2
-                         if [[ $key = $ESC[A ]]; then echo up;    fi
-                         if [[ $key = $ESC[B ]]; then echo down;  fi
-                         if [[ $key = ""     ]]; then echo enter; fi; }
-
-    # initially print empty new lines (scroll down if at bottom of screen)
-    for opt; do printf "\n"; done
-
-    # determine current screen position for overwriting the options
-    
-    local lastrow=$(get_cursor_row)
-    local startrow=$(($lastrow - $#))
-
-    # ensure cursor and input echoing back on upon a ctrl+c during read -s
-    trap "cursor_blink_on; stty echo; printf '\n'; exit" 2
-    cursor_blink_off
-
-    local selected=0
-    while true; do
-        # print options by overwriting the last lines
-        local idx=0
-        for opt; do
-            cursor_to $(($startrow + $idx))
-            if [ $idx -eq $selected ]; then
-                print_selected "$opt"
-            else
-                print_option "$opt"
-            fi
-            ((idx++))
-        done
-
-        # user key control
-        case `key_input` in
-            enter) break;;
-            up)    ((selected--));
-                   if [ $selected -lt 0 ]; then selected=$(($# - 1)); fi;;
-            down)  ((selected++));
-                   if [ $selected -ge $# ]; then selected=0; fi;;
-        esac
+	# helpers for terminal print control and key input
+	ESC=$(printf "\033")
+	cursor_blink_on()	{ printf "$ESC[?25h"; }
+	cursor_blink_off()	{ printf "$ESC[?25l"; }
+	cursor_to()			{ printf "$ESC[$1;${2:-1}H"; }
+    print_option()      { printf "  $1 "; }     # reverted to original code
+    print_selected()    { printf " $ESC[7m $ESC[1;105m$1 $ESC[27m$ESC[0m"; }   # reverted to original code, changed font color from white to purple
+	get_cursor_row()	{ IFS=';' read -sdR -p $'\E[6n' ROW COL; echo ${ROW#*[}; }
+  key_input() {
+    local key
+    # read 3 chars, 1 at a time
+    for ((i=0; i < 3; ++i)); do
+      read -s -n1 input 2>/dev/null >&2
+      # concatenate chars together
+      key+="$input"
+      # if a number is encountered, echo it back
+      if [[ $input =~ ^[1-9]$ ]]; then
+        echo $input; return;
+      # if enter, early return
+      elif [[ $input = "" ]]; then
+        echo enter; return;
+      # if we encounter something other than [1-9] or "" or the escape sequence
+      # then consider it an invalid input and exit without echoing back
+      elif [[ ! $input = $ESC && i -eq 0 ]]; then
+        return
+      fi
     done
 
-    # cursor position back to normal
+    if [[ $key = $ESC[A ]]; then echo up; fi;
+    if [[ $key = $ESC[B ]]; then echo down; fi;
+  }
+  function cursorUp() { printf "$ESC[A"; }
+  function clearRow() { printf "$ESC[2K\r"; }
+  function eraseMenu() {
     cursor_to $lastrow
-    printf "\n"
-    cursor_blink_on
+    clearRow
+    numHeaderRows=$(printf "$header" | wc -l)
+    numOptions=${#options[@]}
+    numRows=$(($numHeaderRows + $numOptions))
+    for ((i=0; i<$numRows; ++i)); do
+      cursorUp; clearRow;
+    done
+  }
 
-    return $selected
+	# initially print empty new lines (scroll down if at bottom of screen)
+	for opt in "${options[@]}"; do printf "\n"; done
+
+	# determine current screen position for overwriting the options
+	local lastrow=`get_cursor_row`
+	local startrow=$(($lastrow - $#))
+    local selected=0
+
+	# ensure cursor and input echoing back on upon a ctrl+c during read -s
+	trap "cursor_blink_on; stty echo; printf '\n'; exit" 2
+	cursor_blink_off
+
+	while true; do
+    # print options by overwriting the last lines
+		local idx=0
+    for opt in "${options[@]}"; do
+      cursor_to $(($startrow + $idx))
+      # add an index to the option
+      local label="$(($idx + 1)). $opt"
+      if [ $idx -eq $selected ]; then
+        print_selected "$label"
+      else
+        print_option "$label"
+      fi
+      ((idx++))
+    done
+
+		# user key control
+    input=$(key_input)
+
+		case $input in
+			enter) break;;
+      [1-9])
+        # If a digit is encountered, consider it a selection (if within range)
+        if [ $input -lt $(($# + 1)) ]; then
+          selected=$(($input - 1))
+          break
+        fi
+        ;;
+			up)	((selected--));
+					if [ $selected -lt 0 ]; then selected=$(($# - 1)); fi;;
+			down)  ((selected++));
+					if [ $selected -ge $# ]; then selected=0; fi;;
+		esac
+	done
+
+    # eraseMenu          # uncommented
+    echo ""              # added
+	cursor_blink_on
+
+	return $selected
 }
 
 
@@ -178,7 +244,7 @@ function single_mode() {
 
     # if the URL contains a "?" remove it and everything after it
     if [[ $url == *"?"* ]]; then
-        url=$(echo $url | cut -d'?' -f1)
+        url=$(echo "$url" | cut -d'?' -f1)
     fi
 
     # strip spaces from the URL
@@ -230,7 +296,7 @@ function single_mode() {
     fi
 
     # download the video using yt-dlp
-    yt-dlp -q "$url" -o "$output_folder/$output_name" --add-metadata --embed-subs
+    "${ytdlp_path}" -q "$url" -o "$output_folder/$output_name" --add-metadata --embed-subs
 
     # check if the video was downloaded successfully
         if [[ ! -f "$output_folder/$output_name" ]]
@@ -309,9 +375,9 @@ function batch_mode() {
 
         # if the URL contains a "?" remove it and everything after it
         if [[ $line == *"?"* ]]; then
-            url=$(echo $line | cut -d'?' -f1)
+            url=$(echo "$line" | cut -d'?' -f1)
         else
-            url=$line
+            url="$line"
         fi
 
         # print an empty line
@@ -369,7 +435,7 @@ function batch_mode() {
         fi
 
         # download the video using yt-dlp
-        yt-dlp -q "$url" -o "$output_folder/$output_name" --add-metadata --embed-subs
+        "${ytdlp_path}" -q "$url" -o "$output_folder/$output_name" --add-metadata --embed-subs
 
 
         # check if the video was downloaded successfully
@@ -455,6 +521,7 @@ function restore_mode() {
 
         # if the line is empty, skip it
         if [[ $line == "" ]]; then
+            # echo "DEBUG: Skipping line '$line'"
             continue
         fi
 
@@ -466,6 +533,8 @@ function restore_mode() {
         if [[ ! "${line}" =~ \.mp4$ ]]; then
             line="${line}.mp4"
         fi
+
+        # echo -e "DEBUG: $line"
 
         # check if the line is in the correct format: <a-z, A-Z, 0-9, .>_<bunch of numbers>.mp4
         if [[ "$line" =~ ^[a-zA-Z0-9.]*_[0-9]*.mp4$ ]]
@@ -512,18 +581,32 @@ function restore_mode() {
         # print the videoname
         echo "  Output File: $output_name"
 
-         # check if the video already exists
+
+        
+        # check if the video already exists
         if [[ -f "$output_folder/$output_name" ]]
         then
 
-            rm "$output_folder/$output_name"
+            # if overwrite_existing_files_in_restore_mode is true
+            if [[ $overwrite_existing_files_in_restore_mode == true ]]
+            then
 
-            echo "  Existing file deleted. Retry downloading file..."
+                rm "$output_folder/$output_name"
+
+                echo "  Existing file deleted. Retry downloading file..."
+
+            else
+
+                echo "  File already exists. Skipping..."
+                continue
+
+            fi
 
         fi
 
+
         # download the video using yt-dlp, catch the error message and save it in the variable error_message
-        error_message=$(yt-dlp -q "$url" -o "$output_folder/$output_name" --add-metadata --embed-subs 2>&1)
+        error_message=$("${ytdlp_path}" -q "$url" -o "$output_folder/$output_name" --add-metadata --embed-subs 2>&1)
 
         # check if the error message contains "Unable to find video in feed"
         if [[ $error_message == *"HTTP Error 404"* ]]
@@ -601,13 +684,13 @@ function avatar_mode() {
 
         # if the username contains a "?" remove it and everything after it
         if [[ $username == *"?"* ]]; then
-            userurl=$(echo $username | cut -d'?' -f1)
+            userurl=$(echo "$username" | cut -d'?' -f1)
         else
-            userurl=$username
+            userurl="$username"
         fi
 
         # directly pass the input to the destination variable
-        userurl=$username
+        userurl="$username"
 
         # now edit the username variable to only contain the username
         username=${username#"https://www.tiktok.com/@"}
@@ -623,7 +706,7 @@ function avatar_mode() {
 
     # use curl to get the html source code of the user's profile page and save it to the temporary file
     # The user agent is needed, as TkikTok will only show a blank page if curl doesn't pretend to be a browser.
-    curl "$userurl" -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36" > "$tempfile"
+    curl "$userurl" -s -A "${user_agent}" > "$tempfile"
 
     # in the temporary file, look for the JSON object that contains "avatarLarger" and save that value to avatarurl
 
@@ -660,7 +743,7 @@ function avatar_mode() {
     fi
 
     # download the avatar image to username.jpg
-    curl "$avatarurl" -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36" -o "$output_folder/$output_name.jpg"
+    curl "$avatarurl" -s -A "${user_agent}" -o "$output_folder/$output_name.jpg"
 
     # check if the image was downloaded successfully
     if [[ ! -f "$output_folder/$output_name.jpg" ]]
@@ -756,8 +839,7 @@ function live_mode() {
 
     # use curl to get the html source code of the live page and save it to the temporary file
     # The user agent is needed, as TkikTok will only show a blank page if curl doesn't pretend to be a browser.
-    { curl "$liveurl" -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36" > "$tempfile" ; } ||
-    { echo -e "\033[1;91mError: Couldn't get Room ID.\033[0m"; echo ""; live_mode; }
+    { curl "$liveurl" -s -A "${user_agent}" > "$tempfile" ; } || { echo -e "\033[1;91mError: Couldn't get Room ID.\033[0m"; echo ""; live_mode; }
 
     # in the temporary file, look for the JSON object that contains "avatarLarger" and save that value to avatarurl
 
@@ -770,10 +852,13 @@ function live_mode() {
     fi
 
     # cut the roomid at the first special character
-    roomid=$(echo $roomid | cut -d'?' -f1)
+    #roomid=$(echo "$roomid" | cut -d'?' -f1)
 
     # cut the roomid before the first space
-    roomid=$(echo $roomid | cut -d' ' -f1)
+    #roomid=$(echo "$roomid" | cut -d' ' -f1)
+
+    # the roomid probably contains the variable of interest multiple times, so we only want the first one
+    roomid=$(echo "$roomid" | head -n 1)
 
     # print the room id
     echo "  Room ID: $roomid"
@@ -782,15 +867,36 @@ function live_mode() {
     echo -ne "  \033[5mRetrieving live infos...\033[25m\033[0m"
 
     # write the response of "https://www.tiktok.com/api/live/detail/?aid=1988&roomID=${roomId}" to jsondata
-    jsondata=$(curl "https://www.tiktok.com/api/live/detail/?aid=1988&roomID=${roomid}" -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36")
+    jsondata=$(curl "https://www.tiktok.com/api/live/detail/?aid=1988&roomID=${roomid}" -s -A "${user_agent}")
 
     # store the JSON object LiveRoomInfo.liveUrl in playlisturl
     playlisturl=$(echo "$jsondata" | jq -r '.LiveRoomInfo.liveUrl')
 
-    # get the flvurl, by replacing "https" with "http" and ".m3u8" with ".flv" in playlisturl
-    # source: https://github.com/Pauloo27/tiktok-live/blob/master/index.js
-    flvurl=${playlisturl/https/http}
-    flvurl=${flvurl/.m3u8/.flv}
+    # if the playlisturl is empty, print an error message and exit the function
+    if [[ $playlisturl == "" ]]
+    then
+        echo -e "\033[1;91m\n  Error: Live stream not found.\033[0m"
+        echo ""
+        live_mode
+    fi
+
+    # if the playlisturl ends with playlist.m3u8, print a warning "Additional metadata will not be downloaded."
+    if [[ $playlisturl == *"playlist.m3u8" ]]
+    then
+        echo -e "\033[93m\n  Additional metadata won't be downloaded due to playlist type.\033[0m"
+    fi
+
+    # if playlisturl doesn't end with playlist.m3u8
+    if [[ $playlisturl != *"playlist.m3u8" ]]
+    then
+
+        # get the flvurl, by replacing "https" with "http" and ".m3u8" with ".flv" in playlisturl
+        # source: https://github.com/Pauloo27/tiktok-live/blob/master/index.js
+        flvurl=${playlisturl/https/http}
+        flvurl=${flvurl/.m3u8/.flv}
+
+    fi
+
 
     # store the JSON object LiveRoomInfo.title in live_title
     live_title=$(echo "$jsondata" | jq -r '.LiveRoomInfo.title')
@@ -841,8 +947,8 @@ function live_mode() {
 
     description="User: $username\nRoom ID: $roomid\nLive Title: $live_title"
 
-    # get metadata if get_additional_metadata is true
-    if [[ $get_additional_metadata == true ]]
+    # get metadata if get_additional_metadata is true and the playlist URL is in old format (doesn't end with playlist.m3u8)
+    if [[ $get_additional_metadata == true ]] && [[ $playlisturl != *"playlist.m3u8" ]]
     then
 
         start_time=""
@@ -854,7 +960,7 @@ function live_mode() {
         # create a temporary file in the current directory
         metatempfile=$(mktemp "${BASEDIR}/ttd-meta.XXXXXX")
 
-        ffmpeg -y -hide_banner -loglevel quiet -i "$flvurl" -f ffmetadata "$metatempfile"
+        "${ffmpeg_path}" -y -hide_banner -loglevel quiet -i "$flvurl" -f ffmetadata "$metatempfile"
 
         # if OS is macOS, use ggrep, otherwise use grep; example: '(?<=model=).+' matches everything after "model="
         if [[ $OSTYPE == "darwin"* ]]
@@ -871,21 +977,23 @@ function live_mode() {
             os_version=$(grep -oP '(?<=os_version=).+' "$metatempfile")
         fi
 
-        # divide start_time by 1000
-        start_time=$(echo "$start_time" | awk '{print $1/1000}')
-        #echo "DEBUG: start_time/1000: $start_time"
-
-        # convert start_time to integer
-        start_time=$(printf "%.0f" "$start_time")
-        # echo "DEBUG: start_time as integer: $start_time"
-
-        # convert the start time from epoch to human readable format
-        start_time=$(date -r $start_time +"%Y-%m-%d %H:%M:%S")
-        # echo "DEBUG: start_time human readable: $start_time"
 
         # add metadata to description, if it's not empty
         if [[ $start_time != "" ]]
         then
+
+            # divide start_time by 1000
+            start_time=$(echo "$start_time" | awk '{print $1/1000}')
+            #echo "DEBUG: start_time/1000: $start_time"
+
+            # convert start_time to integer
+            start_time=$(printf "%.0f" "$start_time")
+            # echo "DEBUG: start_time as integer: $start_time"
+
+            # convert the start time from epoch to human readable format
+            start_time=$(date -r $start_time +"%Y-%m-%d %H:%M:%S")
+            # echo "DEBUG: start_time human readable: $start_time"
+
             description="$description\nLive Start Time: $start_time"
         fi
 
@@ -914,11 +1022,11 @@ function live_mode() {
     # if outputext is mp4
     if [[ $outputext == "mp4" ]]
     then
-        ffmpeg -hide_banner -loglevel quiet -i "$playlisturl" -bsf:a aac_adtstoasc -map_metadata 0 -metadata description="$description" "$output_folder/$output_name"
+        "${ffmpeg_path}" -hide_banner -loglevel quiet -i "$playlisturl" -bsf:a aac_adtstoasc -map_metadata 0 -metadata description="$description" "$output_folder/$output_name"
         # & ffmpeg_pid=$!
         # wait $ffmpeg_pid
     else
-        ffmpeg -hide_banner -loglevel quiet -i "$playlisturl" -map_metadata 0 -metadata description="$description" "$output_folder/$output_name"
+        "${ffmpeg_path}" -hide_banner -loglevel quiet -i "$playlisturl" -map_metadata 0 -metadata description="$description" "$output_folder/$output_name"
         # & ffmpeg_pid=$!
         # wait $ffmpeg_pid
     fi
@@ -971,16 +1079,16 @@ function live_mode() {
         echo -e "  The recording ended at $recording_end_time."
 
         # if ffprobe is installed, print the duration of the video
-        if command -v ffprobe &> /dev/null
+        if command -v "${ffprobe_path}" &> /dev/null
         then
 
             # get the duration of the video
-            duration=$(ffprobe -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$output_folder/$output_name")
+            duration=$("${ffprobe_path}" -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$output_folder/$output_name")
 
             # convert the duration to integer
             duration=${duration%.*}
 
-            # if OS is macOS, use gdate instead of date
+            # if OS is macOS, use another command to convert the duration to human readable format
             if [[ "$OSTYPE" == "darwin"* ]]; then
                 # run this hell of a command to convert the duration to HH:MM:SS
                 duration="$(date -ju -f %s $duration "+%H:%M:%S")"
@@ -1051,9 +1159,9 @@ function music_mode() {
 
     # if the musicurl contains a "?" remove it and everything after it
     if [[ $musicurl == *"?"* ]]; then
-        userurl=$(echo $musicurl | cut -d'?' -f1)
+        userurl=$(echo "$musicurl" | cut -d'?' -f1)
     else
-        musicurl=$musicurl
+        userurl=$musicurl
     fi
 
     # create a temporary file in the current directory
@@ -1061,7 +1169,7 @@ function music_mode() {
 
     # use curl to get the html source code of the music page and save it to the temporary file
     # The user agent is needed, as TkikTok will only show a blank page if curl doesn't pretend to be a browser.
-    curl "$userurl" -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36" > "$tempfile"
+    curl "$userurl" -s -A "${user_agent}" > "$tempfile"
 
     
     # if "ggrep" is installed, use it, otherwise use "grep"
@@ -1123,7 +1231,7 @@ function music_mode() {
         then
 
             # in the temporary file, look for the JSON object MusicModule.musicInfo.music.coverLarge and save that value to playurl
-            coverurl=$(ggrep -oP '(?<="coverLarge":")[^"]*' "$tempfile")
+            coverurl=$(grep -oP '(?<="coverLarge":")[^"]*' "$tempfile")
             # the result contains the desired vlue multiple times, so we only want the first one
             coverurl=$(echo "$coverurl" | head -n 1)
             # in coverurl, replace all occurrences of "\u002F" with "/"
@@ -1259,11 +1367,11 @@ function music_mode() {
         fi
 
         # download the cover image if the coverurl variable is not empty
-        if [[ ! -z $coverurl ]]; then
+        if [[ -n $coverurl ]]; then
 
             # echo "  DEBUG: coverurl: $coverurl"
 
-            curl "$coverurl" -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36" -o "$output_folder/$jpg_filename"
+            curl "$coverurl" -s -A "${user_agent}" -o "$output_folder/$jpg_filename"
 
             # check if the image was downloaded successfully
             if [[ ! -f "$output_folder/$jpg_filename" ]]
@@ -1286,7 +1394,7 @@ function music_mode() {
     # else
 
         # use ffmpeg to download playurl and save it as m4a_filename, and set the title, album and artist metadata
-        ffmpeg -hide_banner -loglevel quiet -i "$playurl" -c copy -metadata title="$title" -metadata album="$album" -metadata artist="$author" "$output_folder/$m4a_filename"
+        "${ffmpeg_path}" -hide_banner -loglevel quiet -i "$playurl" -c copy -metadata title="$title" -metadata album="$album" -metadata artist="$author" "$output_folder/$m4a_filename"
 
     # fi
 
@@ -1342,7 +1450,7 @@ function main_menu() {
        # show a selection menu with the options "single mode" "batch mode" and save the user input in the variable mode
         echo -e "\n\033[1;95mWhich mode do you want to use?\033[0m"
 
-        modeoptions=("Single Mode" "Batch Mode" "Live Mode" "Avatar Mode" "Music Mode" "Restore Mode" "Help" "Exit")
+        modeoptions=("Single Mode" "Batch Mode" "Live Mode" "Avatar Mode" "Sound Mode" "Restore Mode" "Help" "Exit")
         select_option "${modeoptions[@]}"
         modechoice=$?
 
@@ -1358,11 +1466,11 @@ function main_menu() {
         then
 
             # check if ffmpeg is installed
-            if ! command -v ffmpeg &> /dev/null
+            if ! command -v "${ffmpeg_path}" &> /dev/null
             then
                 echo ""
                 echo -e "\033[1;91m  ffmpeg is not installed.\033[0m"
-                echo -e "\033[1;91m  Please install ffmpeg to use this feature.\033[0m"
+                missing_ffmpeg
                 echo ""
                 main_menu
             fi
@@ -1389,7 +1497,7 @@ function main_menu() {
             ask_for_output_folder
             avatar_mode
 
-        elif [[ "${modeoptions[$modechoice]}" == "Music Mode" ]]
+        elif [[ "${modeoptions[$modechoice]}" == "Sound Mode" ]]
         then
 
             # check if OS is macOS
@@ -1406,11 +1514,11 @@ function main_menu() {
             fi
 
             # check if ffmpeg is installed
-            if ! command -v ffmpeg &> /dev/null
+            if ! command -v "${ffmpeg_path}" &> /dev/null
             then
                 echo ""
                 echo -e "\033[1;91m  ffmpeg is not installed.\033[0m"
-                echo -e "\033[1;91m  Please install ffmpeg to use this feature.\033[0m"
+                missing_ffmpeg
                 echo ""
                 main_menu
             fi
@@ -1441,7 +1549,7 @@ function main_menu() {
         echo -e " \033[95m2) Batch Mode\033[0m"
         echo -e " \033[95m3) Live Mode\033[0m"
         echo -e " \033[95m4) Avatar Mode\033[0m"
-        echo -e " \033[95m5) Music Mode\033[0m"
+        echo -e " \033[95m5) Sound Mode\033[0m"
         echo -e " \033[95m6) Restore Mode\033[0m"
         echo -e " \033[95m7) Help\033[0m"
         echo -e " \033[95m8) Exit\033[0m\n"
@@ -1475,11 +1583,11 @@ function main_menu() {
         then
 
             # check if ffmpeg is installed
-            if ! command -v ffmpeg &> /dev/null
+            if ! command -v "${ffmpeg_path}" &> /dev/null
             then
                 echo ""
                 echo -e "\033[1;91m  ffmpeg is not installed.\033[0m"
-                echo -e "\033[1;91m  Please install ffmpeg to use this feature.\033[0m"
+                missing_ffmpeg
                 echo ""
                 main_menu
             fi
@@ -1512,7 +1620,7 @@ function main_menu() {
         fi
 
         # if the input is "5", "music mode" or "music", run the music mode function
-        if [[ $mode == "5" ]] || [[ $mode == "music mode" ]] || [[ $mode == "music" ]]
+        if [[ $mode == "5" ]] || [[ $mode == "sound mode" ]] || [[ $mode == "sound" ]]
         then
 
             # check if OS is macOS
@@ -1529,11 +1637,11 @@ function main_menu() {
             fi
 
             # check if ffmpeg is installed
-            if ! command -v ffmpeg &> /dev/null
+            if ! command -v "${ffmpeg_path}" &> /dev/null
             then
                 echo ""
                 echo -e "\033[1;91m  ffmpeg is not installed.\033[0m"
-                echo -e "\033[1;91m  Please install ffmpeg to use this feature.\033[0m"
+                missing_ffmpeg
                 echo ""
                 main_menu
             fi
@@ -1658,22 +1766,48 @@ function help_screen() {
     fi
     echo "  Bash version $BASH_VERSION."
 
-    echo "  yt-dlp version: $(yt-dlp --version)"
+    echo "  yt-dlp version: $("${ytdlp_path}" --version)"
 
     # if ffmpeg is installed, print the ffmpeg version
-    if [[ $(command -v ffmpeg) ]]
+    if [[ $(command -v "${ffmpeg_path}") ]]
     then
-        echo "  ffmpeg version: $(ffmpeg -version | head -n 1 | sed 's/ffmpeg version //' | cut -d " " -f 1)"
+        echo "  ffmpeg version: $("${ffmpeg_path}" -version | head -n 1 | sed 's/ffmpeg version //' | cut -d " " -f 1)"
     else
         echo "  ffmpeg version: No ffmpeg installation found."
     fi
 
     # if ffprobe is installed, print the ffprobe version
-    if [[ $(command -v ffprobe) ]]
+    if [[ $(command -v "${ffprobe_path}") ]]
     then
-        echo "  ffprobe version: $(ffprobe -version | head -n 1 | sed 's/ffprobe version //' | cut -d " " -f 1)"
+        echo "  ffprobe version: $("${ffprobe_path}" -version | head -n 1 | sed 's/ffprobe version //' | cut -d " " -f 1)"
     else
         echo "  ffprobe version: No ffprobe installation found."
+    fi
+
+    # check if jq, curl, rev and sed are installed, only print a message if they aren't
+    if [[ ! $(command -v jq) ]]
+    then
+        echo "  jq: No jq installation found."
+    fi
+    if [[ ! $(command -v curl) ]]
+    then
+        echo "  curl: No curl installation found."
+    fi
+    if [[ ! $(command -v rev) ]]
+    then
+        echo "  rev: No rev installation found."
+    fi
+    if [[ ! $(command -v sed) ]]
+    then
+        echo "  sed: No sed installation found."
+    fi
+
+    if [[ $OSTYPE != "darwin"* ]]
+    then
+        if [[ ! $(command -v grep) ]]
+        then
+            echo "  grep: No grep installation found."
+        fi
     fi
 
     # if OS is Linux, print the Linux distribution
@@ -1693,10 +1827,11 @@ function help_screen() {
             echo "  ggrep status: not installed"
         fi
     fi
+
     # if OS is Windows, print the Windows version
     if [[ $OSTYPE == "msys" ]] || [[ $OSTYPE == "cygwin" ]] || [[ $OSTYPE == "win32" ]]
     then
-        echo "  Windows version: $(ver) @ $OSTYPE @ $(uname -prs)"
+        echo "  Windows environment: $OSTYPE @ $(uname -prs)"
     fi
 
     # if the script was launched with a parameter, print it
@@ -1715,48 +1850,130 @@ function help_screen() {
 
 }
 
+
+## function missing yt-dlp
+function missing_ytdlp() {
+
+    # if OS is macOS or Linux print "echo -e "Please install yt-dlp before using this script.". If OS is Windows, print "echo -e "You need to point ytdlp_path to your yt-dlp.exe"
+    if [[ $OSTYPE == "darwin"* ]] || [[ $OSTYPE == "linux-gnu" ]]
+    then
+        echo -e "\033[1;91mPlease install yt-dlp before using this script.\033[0m"
+    else
+        echo -e "\033[1;91mYou need to point 'ytdlp_path' to your yt-dlp.exe\033[0m"
+    fi
+
+}
+
+## function missing ffmpeg
+function missing_ffmpeg() {
+
+    if [[ $OSTYPE == "darwin"* ]] || [[ $OSTYPE == "linux-gnu" ]]
+    then
+        echo -e "\033[1;91mPlease install ffmpeg before using this mode.\033[0m"
+    else
+        echo -e "\033[1;91mYou need to point 'ffmpeg_path' to your ffmpeg.exe\033[0m"
+    fi
+
+}
+
+## function missin ffprobe
+function missing_ffprobe() {
+
+    if [[ $OSTYPE == "darwin"* ]] || [[ $OSTYPE == "linux-gnu" ]]
+    then
+        echo -e "\033[1;91mPlease install ffprobe before using this mode.\033[0m"
+    else
+        echo -e "\033[1;91mYou need to point 'ffprobe_path' to your ffprobe.exe\033[0m"
+    fi
+
+}
+
 ### Main code
 
 ## perform some checks before starting the main menu
 
-# check under which shell we are running
-if [[ $(ps -p $$ -o comm=) != *"bash" ]]; then
+# if disable_shell_rerouting is set to false
+if [[ $disable_shell_rerouting == "false" ]]
+then
 
     # if show_warning_when_shell_is_not_bash is enabled, print a warning, otherwise try to suppress any warning and do the trick without the users' notice
     if [[ $show_warning_when_shell_is_not_bash == "true" ]]
     then
 
-        if [[ ! $(ps -p $$ -o comm=) = *"sh" ]]; then
-        
-            echo -e "\033[1;93mWarning: This script must be run under Bash instead of \033[1;91m$(ps -p $$ -o comm=).\033[0m"
-            echo -e "\033[0;93mUsage: ./tiktok-downloader.sh\nSee README for more information.\033[0m"
-            echo ""
-            echo "\033[0;93mTrying to fix this...\033[0m"
-            echo ""
+        # if $SHELL doesn't contain bash, print a warning and try to fix it
+        if [[ $SHELL != *"bash" ]]
+        then
 
-        else
-
-            echo "\033[1;93mWarning: This script must be run under Bash instead of \033[1;91m$(ps -p $$ -o comm=).\033[0m"
-            printf "\033[0;93mUsage: ./tiktok-downloader.sh\nSee README for more information.\033[0m"
+            echo -e "\033[1;93mWarning: This script must be run under Bash instead of \033[1;91m$SHELL.\033[0m"
+            echo -e "\033[0;93mSee README for more information.\033[0m"
             echo ""
             printf "\033[0;93mTrying to fix this...\033[0m"
             echo ""
 
+            pass_error_log="$SHELL"
+
+           { /usr/bin/env bash "$0" "$pass_error_log"; exit 0; } || { echo -e "\033[1;91mThat didn't work. Make sure you have Bash installed.\033[0m";  exit 1; }
+        
         fi
-
-        pass_error_log="$(ps -p $$ -o comm=)"
-
-        { /usr/bin/env bash "$0" "$pass_error_log"; exit 0; } || { echo -e "\033[1;91mThat didn't work. Make sure you have Bash installed.\033[0m";  exit 1; }
 
     else
 
-        pass_error_log="$(ps -p $$ -o comm=)"
+        # if $SHELL doesn't contain bash, try to fix it without the users' notice
+        if [[ $SHELL != *"bash" ]]
+        then
 
-        { /usr/bin/env bash "$0" "$pass_error_log"; exit 0; } || { echo -"TikTok Downloader could't be launched because Bash is not installed.";  exit 1; }
+            pass_error_log="$SHELL"
+
+           { /usr/bin/env bash "$0" "$pass_error_log"; exit 0; } || { echo -e "\033[1;91mThat didn't work. Make sure you have Bash installed.\033[0m";  exit 1; }
+        
+        fi
+    
 
     fi
 
+    # old code:
+
+    # # check under which shell we are running
+    # if [[ $(ps -p $$ -o comm=) != *"bash" ]]; then
+
+    #     # if show_warning_when_shell_is_not_bash is enabled, print a warning, otherwise try to suppress any warning and do the trick without the users' notice
+    #     if [[ $show_warning_when_shell_is_not_bash == "true" ]]
+    #     then
+
+    #         if [[ ! $(ps -p $$ -o comm=) = *"sh" ]]; then
+            
+    #             echo -e "\033[1;93mWarning: This script must be run under Bash instead of \033[1;91m$(ps -p $$ -o comm=).\033[0m"
+    #             echo -e "\033[0;93mUsage: ./tiktok-downloader.sh\nSee README for more information.\033[0m"
+    #             echo ""
+    #             echo "\033[0;93mTrying to fix this...\033[0m"
+    #             echo ""
+
+    #         else
+
+    #             echo "\033[1;93mWarning: This script must be run under Bash instead of \033[1;91m$(ps -p $$ -o comm=).\033[0m"
+    #             printf "\033[0;93mUsage: ./tiktok-downloader.sh\nSee README for more information.\033[0m"
+    #             echo ""
+    #             printf "\033[0;93mTrying to fix this...\033[0m"
+    #             echo ""
+
+    #         fi
+
+    #         pass_error_log="$(ps -p $$ -o comm=)"
+
+    #         { /usr/bin/env bash "$0" "$pass_error_log"; exit 0; } || { echo -e "\033[1;91mThat didn't work. Make sure you have Bash installed.\033[0m";  exit 1; }
+
+    #     else
+
+    #         pass_error_log="$(ps -p $$ -o comm=)"
+
+    #         { /usr/bin/env bash "$0" "$pass_error_log"; exit 0; } || { echo -"TikTok Downloader could't be launched because Bash is not installed.";  exit 1; }
+
+    #     fi
+
+    # fi
+
 fi
+
 
 # if the script was launched with a parameter, save it in a variable received_error_log
 if [[ $1 != "" ]]
@@ -1770,10 +1987,10 @@ fi
 echo -e "\033[1;95mWelcome to the TikTok Downloader.\033[0m"
 
 # check if yt-dlp is installed
-if ! command -v yt-dlp &> /dev/null
+if ! command -v "${ytdlp_path}" &> /dev/null
 then
-    echo -e "\033[1;91mError: yt-dlp is not installed.\033[0m"
-    echo -e "\033[1;91mPlease install yt-dlp before using this script.\033[0m"
+    echo -e "\033[1;91mError: yt-dlp is not installed.\033[0m" 
+    missing_ytdlp
     echo ""
     exit 1
 fi
@@ -1792,7 +2009,7 @@ fi
 if [[ $check_for_updates == "true" ]] && [ ! -f /etc/debian_version ]
 then
 
-    yt_dlp_version=$(yt-dlp --update)
+    yt_dlp_version=$("${ytdlp_path}" --update)
 
     if [[ ! $yt_dlp_version == *"is up to date"* ]]
     then
@@ -1807,16 +2024,14 @@ then
     fi
 fi
 
-# check if ffmpeg is installed
-
 # if show_warning_when_ffmpeg_is_not_installed is set to "true", check if ffmpeg is installed
 if [[ $show_warning_when_ffmpeg_is_not_installed == "true" ]]
 then
 
-    if ! command -v ffmpeg &> /dev/null
+    if ! command -v "${ffmpeg_path}" &> /dev/null
     then
         echo -e "\033[1;93mWarning: ffmpeg is not installed.\033[0m"
-        echo -e "\033[1;93mLive Mode won't work, but you can use the other modes.\033[0m"
+        echo -e "\033[1;93mLive Mode and Sound Mode won't work, but you can use the other modes.\033[0m"
         echo ""
     fi
 
