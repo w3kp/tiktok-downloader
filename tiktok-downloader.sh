@@ -9,7 +9,7 @@
 
 version="2.5"
 
-# Version 2.5 (2022-10-29) - Single, Batch and Restore Mode can now process when the user only provides a video ID (but please don't do that too often)
+# Version 2.5 (2022-10-29) - Single, Batch and Restore Mode can now process when the user only provides a video ID
 # Version 2.4 (2022-10-29) - Live Mode fixes, added success messages for Batch and Restore Mode
 # Version 2.3 (2022-10-29) - updated the selection menu to the version by RobertMcReed (https://gist.github.com/RobertMcReed/05b2dad13e20bb5648e4d8ba356aa60e) which allows the user to select the desired option by pressing the corresponding number key, overwriting files in Restore Mode is now optional, renamed Music Mode to Sound Mode to match TikTok terminology, improved Windows support, several fixes and improvements
 # Version 2.2 (2022-10-28) - added Music Mode to download sounds/music, script can now handle shortcut URLs (https://vm.tiktok.com/<xxxxxxxxx>), Live Mode writes additional metadata to the downloaded video file (if setting is enabled)
