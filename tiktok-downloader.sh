@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 
 # This script allows you to use yt-dlp to download a TikTok video.
@@ -8,8 +7,9 @@
 # In "Sound Mode" the script downloads the sound file of a TikTok sound / music snippet.
 # In "Restore Mode" the script tries to (re)download videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4
 
-version="2.4"
+version="2.5"
 
+# Version 2.5 (2022-10-29) - Single, Batch and Restore Mode can now process when the user only provides a video ID (but please don't do that too often)
 # Version 2.4 (2022-10-29) - Live Mode fixes, added success messages for Batch and Restore Mode
 # Version 2.3 (2022-10-29) - updated the selection menu to the version by RobertMcReed (https://gist.github.com/RobertMcReed/05b2dad13e20bb5648e4d8ba356aa60e) which allows the user to select the desired option by pressing the corresponding number key, overwriting files in Restore Mode is now optional, renamed Music Mode to Sound Mode to match TikTok terminology, improved Windows support, several fixes and improvements
 # Version 2.2 (2022-10-28) - added Music Mode to download sounds/music, script can now handle shortcut URLs (https://vm.tiktok.com/<xxxxxxxxx>), Live Mode writes additional metadata to the downloaded video file (if setting is enabled)
@@ -75,7 +75,7 @@ show_warning_when_ggrep_is_not_installed="true"      # set to "false" if you don
 disable_shell_rerouting="false"                      # set to "true" if you experience a error loop when starting the script (e.g. when using Bash on Windows layers)
 show_warning_when_shell_is_not_bash="true"           # set to "false" if you don't want to see a warning when the script is not executed with Bash
 
-user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36"      # usually you don't need to change this, but if TikTok will block "old" browsers in the future you can change this to a newer user agent string
+user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36"      # usually you don't need to change this, but if TikTok blocks "old" browsers in the future you can change this to a newer user agent string
 
 
 
@@ -239,6 +239,22 @@ function single_mode() {
         main_menu
     fi
 
+    # if the URL is only numeric, do this
+    if [[ $url =~ ^[0-9]+$ ]]
+    then
+        echo -e "\033[93m  Input is only numeric, assuming it's a video ID.\033[0m"
+        echo -e "\033[93m  Let's see if we can figure out the username...\033[0m"
+        url=$(curl -A "${user_agent}" -Ls -o /dev/null -w %{url_effective} "https://www.tiktok.com/@tiktok/video/$url")
+
+        # if the URL now doesn't start with "https://www.tiktok.com/@", it's not a valid URL
+        if [[ ! $url =~ ^https://www.tiktok.com/@ ]]
+        then
+            echo -e "\033[91m  Nope, that didn't work. Please enter a valid URL.\033[0m"
+            echo ""
+            single_mode
+        fi
+    fi
+
     # if the URL starts with "https://vm.tiktok.com/" get the redirect URL
         if [[ $url == "https://vm.tiktok.com/"* ]]; then
             url=$(curl -Ls -o /dev/null -w %{url_effective} "$url")
@@ -298,13 +314,16 @@ function single_mode() {
     fi
 
     # download the video using yt-dlp
-    "${ytdlp_path}" -q "$url" -o "$output_folder/$output_name" --add-metadata --embed-subs
+    "${ytdlp_path}" --no-warnings -q "$url" -o "$output_folder/$output_name" --add-metadata --embed-subs
 
     # check if the video was downloaded successfully
         if [[ ! -f "$output_folder/$output_name" ]]
         then 
             # if no, print an error message
             echo -e "\033[1;91m  Download failed.\033[0m"
+        else
+            # if yes, print success message
+            echo -e "\033[1;92m  Success.\033[0m"
         fi
 
     # run the function again
@@ -370,6 +389,30 @@ function batch_mode() {
             continue
         fi
 
+        echo ""
+
+        # print the current video number and the total number of videos
+        echo "  Video $current_video of $total_videos"
+
+        # if the URL is only numeric, do this
+        if [[ $line =~ ^[0-9]+$ ]]
+        then
+            echo -e "\033[93m  Input $line is only numeric, assuming it's a video ID.\033[0m"
+            echo -e "\033[93m  Let's see if we can figure out the username...\033[0m"
+            url=$(curl -A "${user_agent}" -Ls -o /dev/null -w %{url_effective} "https://www.tiktok.com/@tiktok/video/$line")
+
+            # if the URL now doesn't start with "https://www.tiktok.com/@", it's not a valid URL
+            if [[ ! $url =~ ^https://www.tiktok.com/@ ]]
+            then
+                echo -e "\033[1;91m  Nope, that didn't work. Skipping...\033[0m"
+                echo ""
+                continue
+            fi
+
+            line=$url
+
+        fi
+
         # if the URL starts with "https://vm.tiktok.com/" get the redirect URL
         if [[ $line == "https://vm.tiktok.com/"* ]]; then
             line=$(curl -Ls -o /dev/null -w %{url_effective} "$line")
@@ -382,14 +425,10 @@ function batch_mode() {
             url="$line"
         fi
 
-        # print an empty line
-        echo ""
 
         # strip spaces from the URL
         url=$(echo "$url" | tr -d '[:space:]')
 
-        # print the current video number and the total number of videos
-        echo "  Video $current_video of $total_videos"
 
         # from the variable videourl extract the part between "@" and "/" and save it in the variable username
         username=$(echo "$url" | cut -d'@' -f2 | cut -d'/' -f1)
@@ -437,7 +476,7 @@ function batch_mode() {
         fi
 
         # download the video using yt-dlp
-        "${ytdlp_path}" -q "$url" -o "$output_folder/$output_name" --add-metadata --embed-subs
+        "${ytdlp_path}" --no-warnings -q "$url" -o "$output_folder/$output_name" --add-metadata --embed-subs
 
 
         # check if the video was downloaded successfully
@@ -454,10 +493,18 @@ function batch_mode() {
         # increase the current video number by 1
         current_video=$((current_video+1))
 
-        # when current_video is divisible by 10: wait 3 seconds to prevent rate limiting
-        if [[ $((current_video % 10)) == 0 ]]
+        # when current_video is divisible by 20: wait 3 seconds to prevent rate limiting
+        if [[ $((current_video % 20)) == 0 ]]
         then
-            sleep 3
+
+            # print a status message
+            echo -ne "\n\033[1;90m  Taking a short break to prevent rate limiting...\033[0m"
+
+            sleep 5
+
+            # reset status message
+            echo -ne "\r\033[K"
+
         fi
 
 
@@ -536,13 +583,34 @@ function restore_mode() {
         # print an empty line
         echo ""
 
+        # print the current video number and the total number of videos
+        echo "  Video $current_video of $total_videos"
+
+        # if the URL is only numeric, do this
+        if [[ $line =~ ^[0-9]+$ ]]
+        then
+            echo -e "\033[93m  Input $line is only numeric, assuming it's a video ID.\033[0m"
+            echo -e "\033[93m  Let's see if we can figure out the username...\033[0m"
+            url=$(curl -A "${user_agent}" -Ls -o /dev/null -w %{url_effective} "https://www.tiktok.com/@tiktok/video/$line")
+
+            # if the URL now doesn't start with "https://www.tiktok.com/@", it's not a valid URL
+            if [[ ! $url =~ ^https://www.tiktok.com/@ ]]
+            then
+                echo -e "\033[1;91m  Nope, that didn't work. Skipping...\033[0m"
+                echo ""
+                continue
+            fi
+
+            line=$url
+
+        fi
+
 
         # if line doesn't end with ".mp4", append ".mp4"
         if [[ ! "${line}" =~ \.mp4$ ]]; then
             line="${line}.mp4"
         fi
 
-        # echo -e "DEBUG: $line"
 
         # check if the line is in the correct format: <a-z, A-Z, 0-9, .>_<bunch of numbers>.mp4
         if [[ "$line" =~ ^[a-zA-Z0-9.]*_[0-9]*.mp4$ ]]
@@ -558,6 +626,15 @@ function restore_mode() {
             # create the output name (should result in the same as the input)
             output_name="$username"_"$videoid".mp4
 
+        elif [[ "$line" =~ ^https://www.tiktok.com/@ ]]
+        then
+
+            username=$(echo "$line" | cut -d'@' -f2 | cut -d'/' -f1)
+            videoid=$(echo "$line" | rev | cut -d'/' -f1 | rev)
+
+            # create the url
+            url="https://www.tiktok.com/@$username/video/$videoid"
+
         else
 
             # if the line is in the wrong format, print an error message
@@ -567,9 +644,6 @@ function restore_mode() {
 
         fi
 
-
-        # print the current video number and the total number of videos
-        echo "  Video $current_video of $total_videos"
 
         # from the variable videourl extract the part between "@" and "/" and save it in the variable username
         username=$(echo "$url" | cut -d'@' -f2 | cut -d'/' -f1)
@@ -626,15 +700,21 @@ function restore_mode() {
         elif [[ $error_message == *"Unable to find video in feed"* ]]
         then
 
-            # if yes, print an error message
-            echo -e "\033[1;91m  Download failed. Unable to find video in feed.\033[0m"
+            # check if the video was downloaded despite the error message
+            if [[ ! -f "$output_folder/$output_name" ]]
+            then
+
+                # if yes, print an error message
+                echo -e "\033[1;91m  Download failed. Unable to find video in feed.\033[0m"
+            
+            fi
+
 
         else
 
             # check if the video was downloaded successfully
             if [[ ! -f "$output_folder/$output_name" ]]
             then
-
                 # if no, print an error message
                 echo -e "\033[1;91m  Download failed.\033[0m"
             else
@@ -647,10 +727,18 @@ function restore_mode() {
         # increase the current video number by 1
         current_video=$((current_video+1))
 
-        # when current_video is divisible by 10: wait 3 seconds to prevent rate limiting
-        if [[ $((current_video % 10)) == 0 ]]
+        # when current_video is divisible by 20: wait 3 seconds to prevent rate limiting
+        if [[ $((current_video % 20)) == 0 ]]
         then
-            sleep 3
+
+            # print a status message
+            echo -ne "\n\033[1;90m  Taking a short break to prevent rate limiting...\033[0m"
+
+            sleep 5
+
+            # reset status message
+            echo -ne "\r\033[K"
+
         fi
 
 
@@ -763,7 +851,7 @@ function avatar_mode() {
     if [[ ! -f "$output_folder/$output_name" ]]
     then
         # if no, print an error message
-        echo -e "\033[1;91mDownload failed.\033[0m"
+        echo -e "\033[1;91m  Download failed.\033[0m"
     else
         # if yes, print success message
         echo -e "\033[1;92m  Success.\033[0m"
@@ -1173,7 +1261,7 @@ function live_mode() {
             fi
 
 
-            echo -e "  \033[92mDuration of recording: $duration\033[0m"
+            echo -e "  \033[1;92mDuration of recording: $duration\033[0m"
 
         fi
 
@@ -1453,6 +1541,9 @@ function music_mode() {
             then
                 # if no, print an error message
                 echo -e "  \033[1;91mCover download failed.\033[0m"
+            else
+                # if yes, print confirmation message
+                echo -e "  \033[92mCover download successful.\033[0m"
             fi
 
         fi
@@ -1478,7 +1569,10 @@ function music_mode() {
     if [[ ! -f "$output_folder/$m4a_filename" ]]
     then
         # if no, print an error message
-        echo -e "  \033[1;91mMusic download failed.\033[0m"
+        echo -e "  \033[1;91mSound download failed.\033[0m"
+    else
+        # if yes, print confirmation message
+        echo -e "  \033[92mSound download successful.\033[0m"
     fi
 
 
@@ -1801,6 +1895,9 @@ function ask_for_output_folder() {
     then
         main_menu
     fi
+
+    # remove any backslashes from output_folder
+    output_folder=${output_folder//\\/}
 
     # if the input isn't a directory, print an error message and exit the program
     if [[ ! -d $output_folder ]]
