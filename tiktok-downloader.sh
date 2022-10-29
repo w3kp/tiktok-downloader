@@ -757,13 +757,16 @@ function avatar_mode() {
     fi
 
     # download the avatar image to username.jpg
-    curl "$avatarurl" -s -A "${user_agent}" -o "$output_folder/$output_name.jpg"
+    curl "$avatarurl" -s -A "${user_agent}" -o "$output_folder/$output_name"
 
     # check if the image was downloaded successfully
-    if [[ ! -f "$output_folder/$output_name.jpg" ]]
+    if [[ ! -f "$output_folder/$output_name" ]]
     then
         # if no, print an error message
         echo -e "\033[1;91mDownload failed.\033[0m"
+    else
+        # if yes, print success message
+        echo -e "\033[1;92m  Success.\033[0m"
     fi
 
     # delete the temporary file
