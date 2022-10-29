@@ -9,7 +9,7 @@ This Bash script allows you to download TikTok videos without watermarks — bot
 
 Underneath the surface, my script uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for downloading tiktok posts (TikToks) and [ffmpeg](https://ffmpeg.org/) for livestreams (Lives). If you get warnings or downloading fails, check if those tools are installed and up-to-date.
 
-The script is confirmed working on macOS[^1] and Ubuntu, but it should run on all platforms with Bash, yt-dlp and/or ffmpeg installed.
+The script is confirmed working on macOS[^1] and Ubuntu, but it should run on all platforms with Bash and yt-dlp (and ffmpeg) installed.
 
 ## Features
 
@@ -19,7 +19,7 @@ The script is confirmed working on macOS[^1] and Ubuntu, but it should run on al
 - **Batch Mode**: <br />Paste all video URLs you want to download inside a txt file (one video per line) and tell the script the path to that txt file. Bulk downloading is perfect for archiving and hoarding purposes. <br />Lines should be in the following pattern: `https://www.tiktok.com/@<username>/video/<video id>`, but shortcut URLS `https://vm.tiktok.com/<xxxxxxxxx>` are also supported. (If you only have the `<video id>` that's fine too.) <br />_Note: Depending on the OS and other circumstances it may be a good idea to end the text file with an empty line to make sure the last URL gets read successfully. Also double-check to have actual line breaks between the URLs, otherwise they won't get recognized._
 - **Live Mode**: <br />Live Mode allows you to download a TikTok livestream by any user. <br />Enter the host's username or profile URL and the script will handle the rest. Not that the script unfortuantely can't time travel, so the output file will only be from the point you started recording. You can end the recording by pressing ctrl+c, but have caution to only press the keyboard shortcut once, even when it takes some time for the recording to stop. _(Currently stopping a recording prematurely will cause the whole script to quit.)_ <br />Input can be: `username`, `https://www.tiktok.com/@<username>`, `https://www.tiktok.com/@<username>/live`, or `https://vm.tiktok.com/<xxxxxxxxx>`.
 - **Avatar Mode**: <br />Enter a TikTok username or the profile URL to download the profile picture of that channel in the highest resolution available. <br />Input can be either `username` or `https://www.tiktok.com/@<username>`
-- **Sound Mode**: <br />Enter a TikTok music URL to download a TikTok sound / music snippet. <br />Input has to be in the following format `https://www.tiktok.com/music/<xxxxxxxxxxx>`. Optionally, this will also download the cover image. This mode will output a .m4a and .jpg file in `<artist> - <title>` pattern. The audio file has arist, title and album (if available) written in its metadata. 
+- **Sound Mode**: <br />Enter a TikTok sound URL to download a TikTok sound. <br />Input has to be in the following format `https://www.tiktok.com/music/<xxxxxxxxxxx>`. Optionally, this will also download the cover image. This mode will output a .m4a and .jpg file in `<artist> - <title>` pattern. The audio file has arist, title and album (if available) written in its metadata. 
 - **Restore Mode**: <br />Like Batch Mode this mode uses a txt file as input, but this time lines should be formatted like this: `<user name>_<video id>.mp4` (the .mp4 suffix is optional). If you only have the `<video id>` that's fine too. Use it to (re)download TikToks based on the file name, for example if you notice that previously downloaded files are corrupt. The script will translate the file names back to TikTok video URLs and will (re)download them (if still available). <br />_Note: Double-check to have actual line breaks between the file names, otherwise they won't get recognized._
 
 #### Other features
@@ -71,10 +71,10 @@ While this script is already pretty extensive with currently 6 download modes, t
 
 <details><summary><b>Missing features list</b></summary>
 
-- Make script more robust against wrong user inputs and making it failproof in varying environments
+- Make script more robust against wrong user inputs and unsuccessful server responses
 - Checking if yt-dlp is up-to-date on Debian-based distributions (yt-dlp's integrated update mechanism is disable)
-- Wiki entry: Writing a step-by-step guide to run this script on Windows
-- Fixing cover art integration in Music Mode
+- Wiki entry: Writing a step-by-step guide to run this script on Windows (both Cygwin and WSL)
+- Fixing cover art integration in Sound Mode
 - Trapping ctrl+c during live recording without killing the script. <br />(My previous attempts to grab the process ID of ffmpeg in order to subsequently killing n this process did not work. Either the recording did not start at all or ffmpeg continued to run in the background after returning to the main menu.)
 - Sometimes the public API doesn't show the TikTok HLS playlist URL (JSON object `.LiveRoomInfo.liveUrl`) despite the host being live. Similar tools than mine are also struggling with this [issue](https://github.com/Pauloo27/tiktok-live/issues/4), especially since it's reproducibly broken with some hosts while others work fine. <br />(To this point I couldn't find a way to grab either the m3u8 play or flv stream URL directly from the website instead of the API call. Any idea on how to bypass this issue or why it happens with one but not the other is appreaciated.)
 
