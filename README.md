@@ -44,7 +44,7 @@ To record TikTok Lives and download sounds you also need [ffmpeg](https://ffmpeg
 
 Windows users have to open the script in Noteapd and manually point the variables `ytdlp_path`, `ffmpeg_path` and `ffprobe_path` to the location of their downloaded binaries. The same applies to macOS/Linux users who don't have yt-dlp and ffmpeg located in their $PATH.
 
-See the script's header for more information about dependenices.
+You can check if all depencies are met when you open the Help screen. If no errors or "No installation found" warnings are shown, you're probably good to go. See the script's header for more information about dependenices.
 
 
 ## Usage
