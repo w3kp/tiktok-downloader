@@ -7,7 +7,7 @@
 # In "Sound Mode" the script downloads the sound file of a TikTok sound / music snippet.
 # In "Restore Mode" the script tries to (re)download videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4
 
-version="2.5"
+version="2.5.1"
 
 # Version 2.5 (2022-10-29) - Single, Batch and Restore Mode can now process when the user only provides a video ID
 # Version 2.4 (2022-10-29) - Live Mode fixes, added success messages for Batch and Restore Mode
@@ -247,9 +247,9 @@ function single_mode() {
         url=$(curl -A "${user_agent}" -Ls -o /dev/null -w %{url_effective} "https://www.tiktok.com/@tiktok/video/$url")
 
         # if the URL now doesn't start with "https://www.tiktok.com/@", it's not a valid URL
-        if [[ ! $url =~ ^https://www.tiktok.com/@ ]]
+        if [[ $url =~ ^https://www.tiktok.com/@tiktok ]]
         then
-            echo -e "\033[91m  Nope, that didn't work. Please enter a valid URL.\033[0m"
+            echo -e "\033[1;91m  Nope, that didn't work. Please enter a valid URL.\033[0m"
             echo ""
             single_mode
         fi
@@ -402,10 +402,9 @@ function batch_mode() {
             url=$(curl -A "${user_agent}" -Ls -o /dev/null -w %{url_effective} "https://www.tiktok.com/@tiktok/video/$line")
 
             # if the URL now doesn't start with "https://www.tiktok.com/@", it's not a valid URL
-            if [[ ! $url =~ ^https://www.tiktok.com/@ ]]
+            if [[ $url =~ ^https://www.tiktok.com/@tiktok ]]
             then
                 echo -e "\033[1;91m  Nope, that didn't work. Skipping...\033[0m"
-                echo ""
                 continue
             fi
 
@@ -594,10 +593,9 @@ function restore_mode() {
             url=$(curl -A "${user_agent}" -Ls -o /dev/null -w %{url_effective} "https://www.tiktok.com/@tiktok/video/$line")
 
             # if the URL now doesn't start with "https://www.tiktok.com/@", it's not a valid URL
-            if [[ ! $url =~ ^https://www.tiktok.com/@ ]]
+            if [[ $url =~ ^https://www.tiktok.com/@tiktok ]]
             then
                 echo -e "\033[1;91m  Nope, that didn't work. Skipping...\033[0m"
-                echo ""
                 continue
             fi
 
