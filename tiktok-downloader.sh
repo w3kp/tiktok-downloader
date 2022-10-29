@@ -1,14 +1,16 @@
+
 #!/usr/bin/env bash
 
 # This script allows you to use yt-dlp to download a TikTok video.
 # The script has both a mode for downloading a single video and a mode to download all videos passed to the script via a text file.
 # "Live Mode" allows the user to download a running TikTok live stream. Note that the recording will only start after the script has been started.
 # In "Avatar Mode" the script downloads the profile picture of a TikTok channel in the highest resolution available.
-# In "Music Mode" the script downloads the sound file of a TikTok sound / music snippet.
+# In "Sound Mode" the script downloads the sound file of a TikTok sound / music snippet.
 # In "Restore Mode" the script tries to (re)download videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4
 
-version="2.3"
+version="2.4"
 
+# Version 2.4 (2022-10-29) - Live Mode fixes, added success messages for Batch and Restore Mode
 # Version 2.3 (2022-10-29) - updated the selection menu to the version by RobertMcReed (https://gist.github.com/RobertMcReed/05b2dad13e20bb5648e4d8ba356aa60e) which allows the user to select the desired option by pressing the corresponding number key, overwriting files in Restore Mode is now optional, renamed Music Mode to Sound Mode to match TikTok terminology, improved Windows support, several fixes and improvements
 # Version 2.2 (2022-10-28) - added Music Mode to download sounds/music, script can now handle shortcut URLs (https://vm.tiktok.com/<xxxxxxxxx>), Live Mode writes additional metadata to the downloaded video file (if setting is enabled)
 # Version 2.1 (2022-10-28) - default folder is now script folder by default, the stream title of TikToks lives gets now written into the description metadata field, Avatar Mode can now handle existing files, now showing recording duration if ffprobe is installed, several fixes to make the script more robust, clarified dependencies and settings description, added more settings
@@ -444,13 +446,19 @@ function batch_mode() {
 
             # if no, print an error message
             echo -e "\033[1;91m  Download failed.\033[0m"
+        else
+            # if yes, print success message
+            echo -e "\033[1;92m  Success.\033[0m"
         fi
 
         # increase the current video number by 1
         current_video=$((current_video+1))
 
-        # wait 1 second to prevent rate limiting
-        sleep 1
+        # when current_video is divisible by 10: wait 3 seconds to prevent rate limiting
+        if [[ $((current_video % 10)) == 0 ]]
+        then
+            sleep 3
+        fi
 
 
     done < "$file_path"
@@ -619,7 +627,7 @@ function restore_mode() {
         then
 
             # if yes, print an error message
-            echo -e "\033[1;91m  Download failed! Check if video is still online or retry later.\033[0m"
+            echo -e "\033[1;91m  Download failed. Unable to find video in feed.\033[0m"
 
         else
 
@@ -629,6 +637,9 @@ function restore_mode() {
 
                 # if no, print an error message
                 echo -e "\033[1;91m  Download failed.\033[0m"
+            else
+                # if yes, print a success message
+                echo -e "\033[1;92m  Success.\033[0m"
             fi
 
         fi
@@ -636,8 +647,11 @@ function restore_mode() {
         # increase the current video number by 1
         current_video=$((current_video+1))
 
-        # wait 1 second to prevent rate limiting
-        sleep 1
+        # when current_video is divisible by 10: wait 3 seconds to prevent rate limiting
+        if [[ $((current_video % 10)) == 0 ]]
+        then
+            sleep 3
+        fi
 
 
     done < "$file_path"
@@ -773,6 +787,7 @@ function live_mode() {
     roomid=""
     jsondata=""
     playlisturl=""
+    playlisturl_workaround=""
     flvurl=""
     live_title=""
     description=""
@@ -869,6 +884,9 @@ function live_mode() {
     # write the response of "https://www.tiktok.com/api/live/detail/?aid=1988&roomID=${roomId}" to jsondata
     jsondata=$(curl "https://www.tiktok.com/api/live/detail/?aid=1988&roomID=${roomid}" -s -A "${user_agent}")
 
+    # replace temporary file with jsondata
+    echo "$jsondata" > "$tempfile"
+
     # store the JSON object LiveRoomInfo.liveUrl in playlisturl
     playlisturl=$(echo "$jsondata" | jq -r '.LiveRoomInfo.liveUrl')
 
@@ -880,15 +898,36 @@ function live_mode() {
         live_mode
     fi
 
+    # FIX: I added this workaround because there is no FLV equivalent to playlist.m3u8, but as of now (2022-10-29) you can convert the URL back to the old type.
+    #
     # if the playlisturl ends with playlist.m3u8, print a warning "Additional metadata will not be downloaded."
+    # if [[ $playlisturl == *"playlist.m3u8" ]]
+    # then
+    #     # reset status message
+    #     echo -ne "\r\033[K"
+
+    #     echo -e "\033[93m  Additional metadata .\033[0m"
+    # fi
+
+    # if playlisturl ends with playlist.m3u8
     if [[ $playlisturl == *"playlist.m3u8" ]]
     then
-        echo -e "\033[93m\n  Additional metadata won't be downloaded due to playlist type.\033[0m"
-    fi
 
-    # if playlisturl doesn't end with playlist.m3u8
-    if [[ $playlisturl != *"playlist.m3u8" ]]
-    then
+        playlisturl_workaround=$playlisturl
+
+        # replace pull-hls-f1-va01 with pull-hls-f11-va01
+        playlisturl_workaround=${playlisturl_workaround/pull-hls-f1-va01/pull-hls-f11-va01}
+
+        # replace or4/playlist.m3u8 with or4.m3u8
+        playlisturl_workaround=${playlisturl_workaround/or4\/playlist.m3u8/or4.m3u8}
+
+
+        # get the flvurl, by replacing "https" with "http" and ".m3u8" with ".flv" in playlisturl
+        # source: https://github.com/Pauloo27/tiktok-live/blob/master/index.js
+        flvurl=${playlisturl_workaround/https/http}
+        flvurl=${flvurl/.m3u8/.flv}
+
+    else
 
         # get the flvurl, by replacing "https" with "http" and ".m3u8" with ".flv" in playlisturl
         # source: https://github.com/Pauloo27/tiktok-live/blob/master/index.js
@@ -898,22 +937,33 @@ function live_mode() {
     fi
 
 
+
     # store the JSON object LiveRoomInfo.title in live_title
     live_title=$(echo "$jsondata" | jq -r '.LiveRoomInfo.title')
 
     # reset status message
     echo -ne "\r\033[K"
 
-    # print the playlist URL
-    # echo "  Playlist URL: $playlisturl"
-
     # if the playlist URL is empty, something went wrong. Abort.
     if [[ $playlisturl == "" ]]
     then
+
         echo -e "\n\033[1;91mError: Couldn't get playlist URL.\033[0m"
         echo -e "\033[91mThis live might be over, but sometimes TikTok doesn't allow accessing the stream via public API. Try again later. \033[0m"
         echo ""
         live_mode
+
+    else
+
+        # print the playlist URL
+        echo "  Playlist URL: $playlisturl"
+
+        # if playlisturl_workaround is set, print it
+        if [[ $playlisturl_workaround != "" ]]
+        then
+            echo "  Playlist URL (workaround): $playlisturl_workaround"
+        fi
+
     fi
 
     # print the live title
@@ -1018,15 +1068,17 @@ function live_mode() {
 
     fi
 
+    beginrecording: &> /dev/null
+
     # use ffmpeg to download the video
     # if outputext is mp4
     if [[ $outputext == "mp4" ]]
     then
-        "${ffmpeg_path}" -hide_banner -loglevel quiet -i "$playlisturl" -bsf:a aac_adtstoasc -map_metadata 0 -metadata description="$description" "$output_folder/$output_name"
+        "${ffmpeg_path}" -y -hide_banner -loglevel quiet -i "$playlisturl" -bsf:a aac_adtstoasc -map_metadata 0 -metadata description="$description" "$output_folder/$output_name"
         # & ffmpeg_pid=$!
         # wait $ffmpeg_pid
     else
-        "${ffmpeg_path}" -hide_banner -loglevel quiet -i "$playlisturl" -map_metadata 0 -metadata description="$description" "$output_folder/$output_name"
+        "${ffmpeg_path}" -y -hide_banner -loglevel quiet -i "$playlisturl" -map_metadata 0 -metadata description="$description" "$output_folder/$output_name"
         # & ffmpeg_pid=$!
         # wait $ffmpeg_pid
     fi
@@ -1069,6 +1121,26 @@ function live_mode() {
 
         # if no, print an error message
         echo -e "\033[1;91m  Download failed. No file was saved.\033[0m"
+
+        # try again with playlisturl_workaround
+        if [[ $playlisturl_workaround != "" ]]
+        then
+
+            # maybe we have a workaround
+            echo -e "\033[93m  Trying again with a workaround...\033[0m"
+
+            # set playlisturl to playlisturl_workaround
+            playlisturl="$playlisturl_workaround"
+
+            # clear playlisturl_workaround, so we don't try a third time
+            playlisturl_workaround=""
+
+            # jump to beginrecording
+            jumpto beginrecording
+
+        fi
+
+
     else
 
         # reset status message
@@ -1475,6 +1547,16 @@ function main_menu() {
                 main_menu
             fi
 
+            # check if jq is installed
+            if ! command -v jq &> /dev/null
+            then
+                echo ""
+                echo -e "\033[1;91m  jq is not installed.\033[0m"
+                echo -e "\033[1;91m  Please install jq to use this mode.\033[0m"
+                echo ""
+                main_menu
+            fi
+
             ask_for_output_folder
             live_mode
 
@@ -1488,7 +1570,7 @@ function main_menu() {
                 then
                     echo ""
                     echo -e "\033[1;91m  ggrep is not installed.\033[0m"
-                    echo -e "\033[1;91m  Please install ggrep to use this feature.\033[0m"
+                    echo -e "\033[1;91m  Please install ggrep to use this mode.\033[0m"
                     echo ""
                     main_menu
                 fi
