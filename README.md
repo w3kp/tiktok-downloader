@@ -1,7 +1,7 @@
 # TikTok Videos & Live Downloader
 _Download any TikToks, profile pictures, sounds and ongoing livestreams_
 
-![tiktok-downloader](https://raw.githubusercontent.com/anga83/tiktok-downloader/main/screenshot-v2.0.png)
+![tiktok-downloader](https://raw.githubusercontent.com/anga83/tiktok-downloader/main/screenshot-v2.5.png)
 
 ## Description
 
