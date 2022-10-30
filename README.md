@@ -42,7 +42,7 @@ Ubuntu users should note that Ubuntu 22.04 LTS has an old version of yt-dlp in i
 
 To record TikTok Lives and download sounds you also need [ffmpeg](https://ffmpeg.org/) to be installed. Optionally, [ffprobe](https://ffmpeg.org/) allows you to see the recording duration.
 
-Windows users have to open the script in Noteapd and manually point the variables `ytdlp_path`, `ffmpeg_path` and `ffprobe_path` to the location of their downloaded binaries. The same applies to macOS/Linux users who don't have yt-dlp and ffmpeg located in their $PATH.
+Windows users with Cygwin have to open the script in Noteapd and manually point the variables `ytdlp_path`, `ffmpeg_path` and `ffprobe_path` to the location of their downloaded .exe binaries (WSL users should be fine when they install the Linux binaries inside WSL using apt). The same applies to macOS/Linux users who don't have yt-dlp and ffmpeg located in their PATH.
 
 You can check if all depencies are met when you open the Help screen. If no errors or "No installation found" warnings are shown, you're probably good to go. See the script's header for more information about dependenices.
 
@@ -75,6 +75,7 @@ While this script is already pretty extensive with currently 6 download modes, t
 - Checking if yt-dlp is up-to-date on Debian-based distributions (yt-dlp's integrated update mechanism is disable)
 - Wiki entry: Writing a step-by-step guide to run this script on Windows (both Cygwin and WSL)
 - Fixing cover art integration in Sound Mode
+- After the host ended their Live it takes roughly 60-70 seconds for ffmpeg to notice/timeout. Any way to fasten that up?
 - Trapping ctrl+c during live recording without killing the script. <br />(My previous attempts to grab the process ID of ffmpeg in order to subsequently killing n this process did not work. Either the recording did not start at all or ffmpeg continued to run in the background after returning to the main menu.)
 - Sometimes the public API doesn't show the TikTok HLS playlist URL (JSON object `.LiveRoomInfo.liveUrl`) despite the host being live. Similar tools than mine are also struggling with this [issue](https://github.com/Pauloo27/tiktok-live/issues/4), especially since it's reproducibly broken with some hosts while others work fine. <br />(To this point I couldn't find a way to grab either the m3u8 play or flv stream URL directly from the website instead of the API call. Any idea on how to bypass this issue or why it happens with one but not the other is appreaciated.)
 
