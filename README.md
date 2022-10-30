@@ -9,7 +9,7 @@ This Bash script allows you to download TikTok videos without watermarks — bot
 
 Underneath the surface, my script uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for downloading tiktok posts (TikToks) and [ffmpeg](https://ffmpeg.org/) for livestreams (Lives). If you get warnings or downloading fails, check if those tools are installed and up-to-date.
 
-The script is confirmed working on macOS[^1] and Ubuntu, but it should run on all platforms with Bash and yt-dlp (and ffmpeg) installed.
+The script is confirmed working on macOS[^1], Ubuntu and Cyginwin on Windows. But it should run on all platforms with Bash, yt-dlp and ffmpeg installed.
 
 ## Features
 
@@ -40,7 +40,7 @@ Simply download [tiktok-downloader.sh](https://raw.githubusercontent.com/anga83/
 If you don't already have it installed you also need to install [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 Ubuntu users should note that Ubuntu 22.04 LTS has an old version of yt-dlp in its package repositories, which may cause the download process to fail. Check the link above to update to the latest version.
 
-To record TikTok Lives and download sounds you also need [ffmpeg](https://ffmpeg.org/) to be installed. Optionally, [ffprobe](https://ffmpeg.org/) allows you to see the recording duration.
+To record TikTok Lives and download Sounds you also need [ffmpeg](https://ffmpeg.org) to be installed. Optionally, [ffprobe](https://ffmpeg.org) allows you to see the recording duration.
 
 Windows users with Cygwin have to open the script in Noteapd and manually point the variables `ytdlp_path`, `ffmpeg_path` and `ffprobe_path` to the location of their downloaded .exe binaries (WSL users should be fine when they install the Linux binaries inside WSL using apt). The same applies to macOS/Linux users who don't have yt-dlp and ffmpeg located in their PATH.
 
@@ -50,7 +50,7 @@ You can check if all depencies are met when you open the Help screen. If no erro
 ## Usage
 
 Depending on your operating system, launching the script may differ, but in general there are three ways:
-- macOS: remove the `.sh` file extension, now you can simply double-click to launch
+- macOS: remove the `.sh` file extension, now you can simply double-click to launch (after it was marked executable)
 - Ubuntu: right click and choose "Run as a Program" (there are tutorials to make double-click work as well)
 - any OS: open a Terminal window, navigate to the script directory and enter `./tiktok-downloader.sh`
 
@@ -82,6 +82,8 @@ While this script is already pretty extensive with currently 6 download modes, t
 
 </details>
 
-Any help is appreciated! :)
+## Disclaimer
+
+It goes without saying that this tool is neither supported nor endorsed by TikTok. Anything can and will break apart when they change the structure of their site. For the most part this tool is a fancy frontend for [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [ffmpeg](https://ffmpeg.org/) whose developers should be acknowledged at this point.
 
 [^1]: macOS now uses zsh as default shell and hasn't updated Bash for ages. The script should automatically fallback to a "classic" selection menu, but other issues may still arise. You may update Bash via [Homebrew](https://formulae.brew.sh/formula/bash). <br />macOS users also need to install GNU grep (`ggrep`) via [Homebrew](https://formulae.brew.sh/formula/grep). Otherwise "Avatar Mode" and "Sound Mode" won't work. Linux users can skip that part, since they already have the correct version of `grep` installed.
