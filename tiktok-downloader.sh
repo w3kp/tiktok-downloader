@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 
-# This script allows you to use yt-dlp to download a TikTok video.
-# The script has both a mode for downloading a single video and a mode to download all videos passed to the script via a text file.
+# This script allows you to use download any TikToks, profile pictures, sounds and ongoing livestreams.
+# The script has both a mode for downloading a single video and a mode to bulk download all videos listed in a text file.
 # "Live Mode" allows the user to download a running TikTok live stream. Note that the recording will only start after the script has been started.
 # In "Avatar Mode" the script downloads the profile picture of a TikTok channel in the highest resolution available.
 # In "Sound Mode" the script downloads the sound file of a TikTok sound / music snippet.
 # In "Restore Mode" the script tries to (re)download videos based on the file name. The input is a text file with entries in the following format: <user name>_<video id>.mp4
 
-version="2.5.1"
+version="2.6"
 
+# Version 2.6 (2022-10-31) - input files for Batch and Restore Mode can nov have comment lines (starting with #), Batch and Restore Mode now add an empty line at the end of the input file, Batch and Restore Mode now print a summary of download errors when finished (skipped videos are not counted as errors), support for .mp3 Sounds (source), suuport for .mp3 Sounds (output), added an experimental feature that allows you check if the host is live again after a conncetion lost (or the like), various bug fixes and improvements
 # Version 2.5 (2022-10-29) - Single, Batch and Restore Mode can now process when the user only provides a video ID
 # Version 2.4 (2022-10-29) - Live Mode fixes, added success messages for Batch and Restore Mode
 # Version 2.3 (2022-10-29) - updated the selection menu to the version by RobertMcReed (https://gist.github.com/RobertMcReed/05b2dad13e20bb5648e4d8ba356aa60e) which allows the user to select the desired option by pressing the corresponding number key, overwriting files in Restore Mode is now optional, renamed Music Mode to Sound Mode to match TikTok terminology, improved Windows support, several fixes and improvements
@@ -45,11 +46,11 @@ version="2.5.1"
 ### Internal Variables:
 
 BASEDIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )     # only edit this line if you know what you do
-output_folder=""                                                                 # leave this empty, to set the default output folder use the setting below
+output_folder=""                                                                 # leave this empty; to set the default output folder use the setting below
 
 
 ### Paths
-# macOS and Linux users usaually do not need to change these paths since those programs are installed in a PATH directory by default.
+# macOS and Linux users usaually should keep these variables as they are since those programs are probably installed in a PATH directory.
 # Windows users using Cygwin, MinGW64 or Git Bash need to change these paths to the correct location of the programs including the .exe extension.
 #   example: if yt-dlp.exe is in the same folder as this script, edit the following line like this: ytdlp_path="$BASEDIR/yt-dlp.exe"
 
@@ -60,23 +61,31 @@ ffprobe_path="ffprobe"
 
 ### Settings
 
-default_folder="$BASEDIR"                            # set default download folder, leave empty for empty prompt // default_folder="$BASEDIR" will save files in the script's folder
-                                                     # on Cygwin you need to set default_folder="." to achieve this behavior
-
+default_folder="$BASEDIR"                            # set default download folder // leave empty for empty prompt // default_folder="$BASEDIR" will save files in the script's folder
+                                                     # on Cygwin you may need to set default_folder="." to achieve this behavior, otherwise a "cygrive" folder will be created
 legacy_mode="false"                                  # set to "true" if script won't start, this will disable some features (namely the interactive main menu and output folder suggestions)
 
 check_for_updates="true"                             # set to "false" if you don't want to check for yt-dlp updates at startup (if true, script may take a few seconds longer to start)
 get_additional_metadata="true"                       # set to "false" if you don't want to download additional metadata in Live Mode (if true, recording may take a few seconds longer to start)
 download_music_cover="true"                          # set to "false" if you don't want to download the music cover image in Music Mode
-overwrite_existing_files_in_restore_mode="true"     # set to "fals" if you don't want to overwrite existing files in Restore Mode
+overwrite_existing_files_in_restore_mode="true"      # set to "false" if you don't want to overwrite existing files in Restore Mode
 show_warning_when_ffmpeg_is_not_installed="true"     # set to "false" if you don't want to see a warning when ffmpeg is not installed
 show_warning_when_ggrep_is_not_installed="true"      # set to "false" if you don't want to see a warning when ggrep is not installed (only macOS)
 
 disable_shell_rerouting="false"                      # set to "true" if you experience a error loop when starting the script (e.g. when using Bash on Windows layers)
 show_warning_when_shell_is_not_bash="true"           # set to "false" if you don't want to see a warning when the script is not executed with Bash
 
-user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36"      # usually you don't need to change this, but if TikTok blocks "old" browsers in the future you can change this to a newer user agent string
+sounds_file_format="m4a"                             # default is "m4a", set to "mp3" if you want to download sounds in mp3 format (check if your ffmpeg has libmp3lame support)
 
+user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36"      # usually you don't need to change this, but if TikTok blocks "old" browsers in the future you can change this to a newer user agent string; e.g. use this source: https://www.whatismybrowser.com/guides/the-latest-user-agent
+
+
+## Experimental Features
+live_try_again_after_success="0"                    # set to the number of "live again" checks after a successful recording ended, set to "0" to disable
+    # Sometimes the recording timeouts before the live stream ends, the host pauses the stream or looses connection for a few seconds.
+    # This option will wait 10 secconds and then check if the host is live again. If they are, the script will start a new recording.
+    # Note: To prevent misuse (i.e. firing requests until the host goes live), this feature will only be triggered after a successful recording ended.
+    # If the previous recording was not successful, this feature will be disabled for the current recording session.
 
 
 ### Traps
@@ -257,7 +266,7 @@ function single_mode() {
 
     # if the URL starts with "https://vm.tiktok.com/" get the redirect URL
         if [[ $url == "https://vm.tiktok.com/"* ]]; then
-            url=$(curl -Ls -o /dev/null -w %{url_effective} "$url")
+            url=$(curl -A "${user_agent}" -Ls -o /dev/null -w %{url_effective} "$url")
         fi
 
     # if the URL contains a "?" remove it and everything after it
@@ -300,12 +309,12 @@ function single_mode() {
 
             rm "$output_folder/$output_name"
 
-            echo "  Retry downloading file..."
+            echo -e "\033[1m  Retry downloading file...\033[0m"
 
         else
 
             # if yes, print a message and skip the video
-            echo "  Video already exists. Skipping..."
+            echo -e "\033[1m  Video already exists. Skipping...\033[0m"
 
             # run the function again
             single_mode
@@ -314,7 +323,7 @@ function single_mode() {
     fi
 
     # download the video using yt-dlp
-    "${ytdlp_path}" --no-warnings -q "$url" -o "$output_folder/$output_name" --add-metadata --embed-subs
+    "${ytdlp_path}" --no-warnings --ignore-errors -q "$url" -o "$output_folder/$output_name" --add-metadata --embed-subs
 
     # check if the video was downloaded successfully
         if [[ ! -f "$output_folder/$output_name" ]]
@@ -337,6 +346,8 @@ function batch_mode() {
     file_path=""
     current_video=1
     total_videos=1
+    error_message=""
+    problematic_lines=""
 
     # ask the user to enter the path to the file
     echo -e "\n\033[1;95mEnter the path to a text file with all links:\033[0m"
@@ -372,6 +383,9 @@ function batch_mode() {
         batch_mode
     fi
 
+    # add an empty line at the end of the file
+    echo "" >> "$file_path"
+
     # get the number of non-empty lines in the file
     total_videos=$(grep -c . "$file_path")
 
@@ -384,8 +398,9 @@ function batch_mode() {
         videoid=""
         output_name=""
 
-        # if the line is empty, skip it
-        if [[ $line == "" ]]; then
+        # if the line is empty or starts with "#", skip it
+        if [[ $line == "" ]] || [[ $line == "#"* ]]
+        then
             continue
         fi
 
@@ -401,10 +416,11 @@ function batch_mode() {
             echo -e "\033[93m  Let's see if we can figure out the username...\033[0m"
             url=$(curl -A "${user_agent}" -Ls -o /dev/null -w %{url_effective} "https://www.tiktok.com/@tiktok/video/$line")
 
-            # if the URL now doesn't start with "https://www.tiktok.com/@", it's not a valid URL
+            # if the URL now doesn't start with "https://www.tiktok.com/@tiktok", it's not a valid URL
             if [[ $url =~ ^https://www.tiktok.com/@tiktok ]]
             then
                 echo -e "\033[1;91m  Nope, that didn't work. Skipping...\033[0m"
+                problematic_lines="${problematic_lines}${line} (invalid URL)\n"
                 continue
             fi
 
@@ -414,7 +430,15 @@ function batch_mode() {
 
         # if the URL starts with "https://vm.tiktok.com/" get the redirect URL
         if [[ $line == "https://vm.tiktok.com/"* ]]; then
-            line=$(curl -Ls -o /dev/null -w %{url_effective} "$line")
+            line=$(curl -A "${user_agent}" -Ls -o /dev/null -w %{url_effective} "$line")
+        fi
+
+        # if the URL doesn't start with "https://www.tiktok.com/@", it's not a valid URL
+        if [[ $line != "https://www.tiktok.com/@"* ]]
+        then
+            echo -e "\033[1;91m  Invalid URL.\033[0m"
+            problematic_lines="${problematic_lines}${line} (invalid URL)\n"
+            continue
         fi
 
         # if the URL contains a "?" remove it and everything after it
@@ -459,12 +483,12 @@ function batch_mode() {
 
                 rm "$output_folder/$output_name"
 
-                echo "  Retry downloading file..."
+                echo -e "\033[1m  Retry downloading file...\033[0m"
 
             else
 
                 # if yes, print a message and skip the video
-                echo "  Video already exists. Skipping..."
+                echo -e "\033[1m  Video already exists. Skipping...\033[0m"
 
                 # increase the current video number by 1
                 current_video=$((current_video+1))
@@ -475,18 +499,44 @@ function batch_mode() {
         fi
 
         # download the video using yt-dlp
-        "${ytdlp_path}" --no-warnings -q "$url" -o "$output_folder/$output_name" --add-metadata --embed-subs
+        error_message=$("${ytdlp_path}" --no-warnings --ignore-errors -q "$url" -o "$output_folder/$output_name" --add-metadata --embed-subs 2>&1)
 
 
-        # check if the video was downloaded successfully
-        if [[ ! -f "$output_folder/$output_name" ]]
+        # check if the error message contains "Unable to find video in feed"
+        if [[ $error_message == *"HTTP Error 404"* ]]
         then
 
-            # if no, print an error message
-            echo -e "\033[1;91m  Download failed.\033[0m"
+            # if yes, print an error message
+            echo -e "\033[1;91m  Video is not/no longer available.\033[0m"
+            problematic_lines="${problematic_lines}${line} (404 error)\n"
+
+        elif [[ $error_message == *"Unable to find video in feed"* ]]
+        then
+
+            # check if the video was downloaded despite the error message
+            if [[ ! -f "$output_folder/$output_name" ]]
+            then
+
+                # if yes, print an error message
+                echo -e "\033[1;91m  Download failed. Unable to find video in feed.\033[0m"
+                problematic_lines="${problematic_lines}${line} (not in feed)\n"
+            
+            fi
+
+
         else
-            # if yes, print success message
-            echo -e "\033[1;92m  Success.\033[0m"
+
+            # check if the video was downloaded successfully
+            if [[ ! -f "$output_folder/$output_name" ]]
+            then
+                # if no, print an error message
+                echo -e "\033[1;91m  Download failed.\033[0m"
+                problematic_lines="${problematic_lines}${line} (download failed)\n"
+            else
+                # if yes, print a success message
+                echo -e "\033[1;92m  Success.\033[0m"
+            fi
+
         fi
 
         # increase the current video number by 1
@@ -496,10 +546,12 @@ function batch_mode() {
         if [[ $((current_video % 20)) == 0 ]]
         then
 
-            # print a status message
-            echo -ne "\n\033[1;90m  Taking a short break to prevent rate limiting...\033[0m"
-
-            sleep 5
+            # print "Taking a short break to prevent rate limiting..." with a 5 second countdown, overwriting the same line
+            for i in {5..1}
+            do
+                echo -ne "\033[1m  Taking a short break to prevent rate limiting... $i\033[0m\033[0K\r"
+                sleep 1
+            done
 
             # reset status message
             echo -ne "\r\033[K"
@@ -512,7 +564,14 @@ function batch_mode() {
 
     # print an empty line
     echo ""
-    
+
+    # if there were any problematic lines, print them
+    if [[ $problematic_lines != "" ]]
+    then
+        echo -e "\033[1;91mThe following errors occurred:\033[0m"
+        echo -e "$problematic_lines"
+    fi
+
 
     # run the function again
     batch_mode
@@ -525,6 +584,7 @@ function restore_mode() {
     file_path=""
     current_video=1
     total_videos=1
+    problematic_lines=""
 
     # ask the user to enter the path to the file
     echo -e "\n\033[1;95mEnter the path to a text file with all links:\033[0m"
@@ -560,6 +620,9 @@ function restore_mode() {
         batch_mode
     fi
 
+    # add an empty line at the end of the file
+    echo "" >> "$file_path"
+
     # get the number of non-empty lines in the file
     total_videos=$(grep -c . "$file_path")
 
@@ -573,9 +636,8 @@ function restore_mode() {
         output_name=""
         error_message=""
 
-        # if the line is empty, skip it
-        if [[ $line == "" ]]; then
-            # echo "DEBUG: Skipping line '$line'"
+        # if the line is empty or starts with a #, skip it
+        if [[ $line == "" ]] || [[ $line == "#"* ]]; then
             continue
         fi
 
@@ -596,6 +658,7 @@ function restore_mode() {
             if [[ $url =~ ^https://www.tiktok.com/@tiktok ]]
             then
                 echo -e "\033[1;91m  Nope, that didn't work. Skipping...\033[0m"
+                problematic_lines="${problematic_lines}${line} (invalid URL)\n"
                 continue
             fi
 
@@ -637,6 +700,7 @@ function restore_mode() {
 
             # if the line is in the wrong format, print an error message
             echo -e "\033[1;91mError: The line \"$line\" is in the wrong format.\033[0m"
+            problematic_lines="${problematic_lines}${line} (invalid URL)\n"
 
             continue
 
@@ -673,11 +737,11 @@ function restore_mode() {
 
                 rm "$output_folder/$output_name"
 
-                echo "  Existing file deleted. Retry downloading file..."
+                echo -e "\033[1m  Existing file deleted. Retry downloading file...\033[0m"
 
             else
 
-                echo "  File already exists. Skipping..."
+                echo -e "\033[1m  File already exists. Skipping...\033[0m"
                 continue
 
             fi
@@ -694,6 +758,7 @@ function restore_mode() {
 
             # if yes, print an error message
             echo -e "\033[1;91m  Video is not/no longer available.\033[0m"
+            problematic_lines="${problematic_lines}${line} (404 error)\n"
 
         elif [[ $error_message == *"Unable to find video in feed"* ]]
         then
@@ -704,6 +769,7 @@ function restore_mode() {
 
                 # if yes, print an error message
                 echo -e "\033[1;91m  Download failed. Unable to find video in feed.\033[0m"
+                problematic_lines="${problematic_lines}${line} (not in feed)\n"
             
             fi
 
@@ -715,6 +781,7 @@ function restore_mode() {
             then
                 # if no, print an error message
                 echo -e "\033[1;91m  Download failed.\033[0m"
+                problematic_lines="${problematic_lines}${line} (download failed)\n"
             else
                 # if yes, print a success message
                 echo -e "\033[1;92m  Success.\033[0m"
@@ -729,10 +796,12 @@ function restore_mode() {
         if [[ $((current_video % 20)) == 0 ]]
         then
 
-            # print a status message
-            echo -ne "\n\033[1;90m  Taking a short break to prevent rate limiting...\033[0m"
-
-            sleep 5
+            # print "Taking a short break to prevent rate limiting..." with a 5 second countdown, overwriting the same line
+            for i in {5..1}
+            do
+                echo -ne "\033[1m  Taking a short break to prevent rate limiting... $i\033[0m\033[0K\r"
+                sleep 1
+            done
 
             # reset status message
             echo -ne "\r\033[K"
@@ -745,7 +814,14 @@ function restore_mode() {
 
     # print an empty line
     echo ""
-    
+
+    # if there are problematic lines, print them
+    if [[ ! -z $problematic_lines ]]
+    then
+        echo -e "\033[1;91mThe following errors occurred:\033[0m"
+        echo -e "$problematic_lines"
+    fi
+
 
     # run the function again
     restore_mode
@@ -777,6 +853,11 @@ function avatar_mode() {
     then
         echo ""
         main_menu
+    fi
+
+    # if the url starts with a "@" and has no "/" in it, assume it's a username and remove the "@"
+    if [[ $username == "@"* ]] && [[ $username != *"/*" ]]; then
+        username=${username#"@"}
     fi
 
     # if the username doesn't start with "https://www.tiktok.com/@" prepend it to the username; save it to userurl
@@ -856,7 +937,7 @@ function avatar_mode() {
     fi
 
     # delete the temporary file
-    rm "$tempfile"
+    if [ -f "$tempfile" ]; then rm "$tempfile"; fi
 
     # print an empty line
     echo ""
@@ -877,12 +958,15 @@ function live_mode() {
     jsondata=""
     playlisturl=""
     playlisturl_workaround=""
+    did_workaround=""
     flvurl=""
     live_title=""
+    number_of_viewers=""
     description=""
     datetime=""
     output_name=""
     recording_end_time=""
+    this_session_live_try_again_after_succes="0"
     # ffmpeg_pid=""
 
     # print an empty line
@@ -908,7 +992,7 @@ function live_mode() {
 
     # if the URL starts with "https://vm.tiktok.com/" get the redirect URL
     if [[ $username == "https://vm.tiktok.com/"* ]]; then
-        username=$(curl -Ls -o /dev/null -w %{url_effective} "$username")
+        username=$(curl -A "${user_agent}" -Ls -o /dev/null -w %{url_effective} "$username")
     fi
 
     # if the URL contains a "?" remove it and everything after it
@@ -919,6 +1003,10 @@ function live_mode() {
     # strip spaces from the URL
     username=$(echo "$username" | tr -d '[:space:]')
 
+    # if the url starts with a "@" and has no "/" in it, assume it's a username and remove the "@"
+    if [[ $username == "@"* ]] && [[ $username != *"/*" ]]; then
+        username=${username#"@"}
+    fi
 
     # if the URL starts with "https://www.tiktok.com/@", extract the username
     if [[ $username == "https://www.tiktok.com/@"* ]] || [[ $username == "https://tiktok.com/@"* ]]; then
@@ -967,8 +1055,11 @@ function live_mode() {
     # print the room id
     echo "  Room ID: $roomid"
 
+    # jumppoint if live_try_again_after_success is != 0
+    retrievingliveinfo: &> /dev/null
+
     # status message: getting live infos
-    echo -ne "  \033[5mRetrieving live infos...\033[25m\033[0m"
+    echo -ne "  \033[5mRetrieving live info...\033[25m\033[0m"
 
     # write the response of "https://www.tiktok.com/api/live/detail/?aid=1988&roomID=${roomId}" to jsondata
     jsondata=$(curl "https://www.tiktok.com/api/live/detail/?aid=1988&roomID=${roomid}" -s -A "${user_agent}")
@@ -982,7 +1073,7 @@ function live_mode() {
     # if the playlisturl is empty, print an error message and exit the function
     if [[ $playlisturl == "" ]]
     then
-        echo -e "\033[1;91m\n  Error: Live stream not found.\033[0m"
+        echo -e "\033[1;91m\n  Error: Livestream not found.\033[0m"
         echo ""
         live_mode
     fi
@@ -1153,7 +1244,7 @@ function live_mode() {
 
 
         # delete the temporary file
-        # rm "$metatempfile"
+        if [ -f "$metatempfile" ]; then rm "$metatempfile"; fi
 
     fi
 
@@ -1187,17 +1278,18 @@ function live_mode() {
 
     # write new status message
     # reset status message
-    echo -ne "  \033[90mRecording stopped. Checking if download was successful...\033[0m"
+    echo -ne "  \033Recording stopped. Checking if download was successful...\033[0m"
 
     # get current time in HH:MM:SS
     recording_end_time=$(date +"%T")
 
     
-
+    # from jsondata get the object .LiveRoomInfo.liveRoomStats.userCount and write it to number_of_viewers
+    number_of_viewers=$(echo "$jsondata" | jq -r '.LiveRoomInfo.liveRoomStats.userCount')
 
 
     # delete the temporary file
-    rm "$tempfile"
+    if [ -f "$tempfile" ]; then rm "$tempfile"; fi
 
 
     # check if the video was downloaded successfully
@@ -1208,8 +1300,43 @@ function live_mode() {
         echo -ne "\r\033[K"
         echo ""
 
-        # if no, print an error message
-        echo -e "\033[1;91m  Download failed. No file was saved.\033[0m"
+        # if just tried the workaround, print a different message than normally
+        if [[ $did_workaround == "true" ]] 
+        then
+
+            echo -e "\033[1;91m  Sorry, that didn't work either.\033[0m"
+
+            # if number_of_viewers is 0, print a message
+            if [[ $number_of_viewers == "0" ]]
+            then
+                echo -e "\n\033[91m  This may be because the live stream has ended.\033[0m"
+                echo -e "\033[91m  There are $number_of_viewers in this room.\033[0m"
+            fi
+
+        else
+
+            # if we are in a retry print a different message than normally
+            if [[ $this_session_live_try_again_after_success != "0" ]]
+            then
+                echo -e "\033[1m  Nope. Looks like the host ended their stream for now.\033[0m"
+            else
+                echo -e "\033[1;91m  Download failed. No file was saved.\033[0m"
+            fi
+
+            # if number_of_viewers is 0, print a message
+            if [[ $number_of_viewers == "0" ]] && [[ $playlisturl_workaround == "" ]]
+            then
+
+                # only print this if are not in a retry; otherwise this information is pointless
+                if [[ $this_session_live_try_again_after_success == "0" ]]
+                then
+                    echo -e "\n\033[91m  This may be because the live stream has ended.\033[0m"
+                    echo -e "\033[91m  There are currently $number_of_viewers in this room.\033[0m"
+                fi
+
+            fi
+
+        fi
 
         # try again with playlisturl_workaround
         if [[ $playlisturl_workaround != "" ]]
@@ -1223,6 +1350,12 @@ function live_mode() {
 
             # clear playlisturl_workaround, so we don't try a third time
             playlisturl_workaround=""
+
+            # set did_workaround to true
+            did_workaround="true"
+
+            # print download status message again
+            echo -ne "\n  Downloading...\n\033[90m  Press ctrl+c to stop.\033[0m"
 
             # jump to beginrecording
             jumpto beginrecording
@@ -1263,6 +1396,33 @@ function live_mode() {
 
         fi
 
+
+        # if live_try_again_after_success is != 0 and this_session_live_try_again_after_success is < live_try_again_after_success
+        if [[ $live_try_again_after_success != "0" ]] && [[ $this_session_live_try_again_after_success -lt $live_try_again_after_success ]]
+        then
+
+            # increment this_session_live_try_again_after_success
+            this_session_live_try_again_after_success=$((this_session_live_try_again_after_success+1))
+
+            echo ""
+
+            # wait for 10 seconds
+            for i in {10..1}
+            do
+                echo -ne "\033[1m  Waiting for $i seconds until we check if the host has restarted their Live\033[0m\033[0K\r"
+                sleep 1
+            done
+
+            # reset status message
+            echo -ne "\r\033[K"
+
+            echo -e "  Checking if the host restarted their Live (Retry $this_session_live_try_again_after_success of $live_try_again_after_success)..."
+
+            # jump to beginrecording
+            jumpto retrievingliveinfo
+
+        fi
+
     fi
 
     # run the function again
@@ -1273,56 +1433,75 @@ function live_mode() {
 
 
 ## function: avatar mode
-function music_mode() {
+function sound_mode() {
 
-    musicurl=""
+    soundurl=""
     playurl=""
     title=""
     author=""
     album=""
     duration=""
     coverurl=""
+    codec=""
     filename_pattern=""
-    m4a_filename=""
+    audio_filename=""
     jpg_filename=""
+
+    # if $sounds_file_format is set to m4a
+    if [[ $sounds_file_format == "m4a" ]]
+    then
+        codec="aac"
+    # if $sounds_file_format is set to mp3
+    elif [[ $sounds_file_format == "mp3" ]]
+    then
+        codec="libmp3lame"
+    else
+    # tell the user that the file format is not supported
+        echo -e "\033[1;91m  Sorry, the file format $sounds_file_format is not supported.\033[0m"
+        echo -e "\033[1;91m  Please use m4a or mp3.\033[0m"
+        echo -e "\033[1;91m  Change the setting and restart the script.\033[0m"
+        echo ""
+        main_menu
+    fi
 
 
     # ask user for TikTok username
-    echo -e "\n\033[1;95mEnter TikTok sound/music URL: \033[0m"
-    read -rep $'\033[1;95m> \033[0m' musicurl
+    echo -e "\n\033[1;95mEnter TikTok music URL: \033[0m"
+    echo -e "\033[95mExample: https://www.tiktok.com/music/Original-Sound-1234567890123456789\033[0m"
+    read -rep $'\033[1;95m> \033[0m' soundurl
 
     # if the input is empty, "q", "quit" or "exit", exit the program
-    if [[ $musicurl == "" ]] || [[ $musicurl == "exit" ]] || [[ $musicurl == "quit" ]] || [[ $musicurl == "q" ]]
+    if [[ $soundurl == "" ]] || [[ $soundurl == "exit" ]] || [[ $soundurl == "quit" ]] || [[ $soundurl == "q" ]]
     then
         echo ""
         exit 0
     fi
 
     # if the input is "b" or "back", go back to the main menu
-    if [[ $musicurl == "b" ]] || [[ $musicurl == "back" ]]
+    if [[ $soundurl == "b" ]] || [[ $soundurl == "back" ]]
     then
         echo ""
         main_menu
     fi
 
     # if the URL starts with "https://vm.tiktok.com/" get the redirect URL
-    if [[ $musicurl == "https://vm.tiktok.com/"* ]]; then
-        musicurl=$(curl -Ls -o /dev/null -w %{url_effective} "$musicurl")
+    if [[ $soundurl == "https://vm.tiktok.com/"* ]]; then
+        soundurl=$(curl -A "${user_agent}" -Ls -o /dev/null -w %{url_effective} "$soundurl")
     fi
 
     # if the URL doesn't start with "https://www.tiktok.com/music/", tell the user that the URL is invalid and repeat the function
-    if [[ $musicurl != "https://www.tiktok.com/music/"* ]]; then
+    if [[ $soundurl != "https://www.tiktok.com/music/"* ]]; then
         echo -e "\n\033[1;91mInvalid URL!\033[0m"
         echo -e" \033[91mURL has to start with 'https://www.tiktok.com/music/'\033[0m"
         echo ""
-        music_mode
+        sound_mode
     fi
 
-    # if the musicurl contains a "?" remove it and everything after it
-    if [[ $musicurl == *"?"* ]]; then
-        userurl=$(echo "$musicurl" | cut -d'?' -f1)
+    # if the soundurl contains a "?" remove it and everything after it
+    if [[ $soundurl == *"?"* ]]; then
+        userurl=$(echo "$soundurl" | cut -d'?' -f1)
     else
-        userurl=$musicurl
+        userurl=$soundurl
     fi
 
     # create a temporary file in the current directory
@@ -1422,13 +1601,13 @@ function music_mode() {
     fi
 
     # remove the temporary file
-    rm "$tempfile"
+    if [ -f "$tempfile" ]; then rm "$tempfile"; fi
 
     # check if the playurl variable is empty, if it is, tell the user that the URL is invalid and repeat the function
     if [[ -z $playurl ]]; then
         echo -e "  \n\033[1;91mError: Couldn't receive music.\033[0m"
         echo ""
-        music_mode
+        sound_mode
     fi
 
     # check if the title variable is empty, if it is, overwrite it with "Unknown Title"
@@ -1467,7 +1646,7 @@ function music_mode() {
         if [[ -z $coverurl ]]; then
             echo -e "  Couldn't receive cover art."
         else
-            echo "  Cover found."
+            echo -e "  Cover found."
         fi
 
     fi
@@ -1480,24 +1659,44 @@ function music_mode() {
     filename_pattern=${filename_pattern//[^a-zA-Z0-9 -_]/_}
     # echo "DEBUG: filename_pattern: $filename_pattern"
 
-    m4a_filename="${filename_pattern}.m4a"
+    # if the filename_pattern variable is empty, overwrite it with "Unknown Artist - Unknown Title"
+    if [[ -z $filename_pattern ]]; then
+        filename_pattern="Unknown Artist - Unknown Title"
+    fi
+
+    # if the filename_pattern starts with a dot, prepend an underscore
+    if [[ $filename_pattern == .* ]]; then
+        filename_pattern="_$filename_pattern"
+    fi
+
+    if [[ $sounds_file_format == "m4a" ]]
+    then
+        audio_filename="${filename_pattern}.m4a"
+    else
+        audio_filename="${filename_pattern}.mp3"
+    fi
     
     # if the music file already exists, add a number to the end of the output name
-    if [[ -f "$output_folder/$filename_pattern.m4a" ]]
+    if [[ -f "$output_folder/$audio_filename" ]]
     then
 
-        m4a_filename="${filename_pattern}_$(date +%s).m4a"
+        if [[ $sounds_file_format == "m4a" ]]
+        then
+            # in audio_filename, replace replace ".m4a" with _$(date +%s).m4a
+            audio_filename=${audio_filename//.m4a/_$(date +%s).m4a}
+        else
+            # in audio_filename, replace replace ".mp3" with _$(date +%s).mp3
+            audio_filename=${audio_filename//.mp3/_$(date +%s).mp3}
+        fi
 
         # print a message
-        echo "  \033[93m$filename_pattern.m4a already exists\033[0m"
-        echo "  Music File Name: $m4a_filename"
+        echo -e "  \033[93m$filename_pattern.m4a already exists\033[0m"
+        echo -e "  Music File Name: $audio_filename"
 
     else
 
-        m4a_filename="${filename_pattern}.m4a"
-
         # print a message
-        echo "  Music File Name: $m4a_filename"        
+        echo -e "  Music File Name: $audio_filename"        
 
     fi
 
@@ -1515,15 +1714,15 @@ function music_mode() {
             jpg_filename="${filename_pattern}_$(date +%s).jpg"
 
             # print a message
-            echo "  \033[93m$filename_pattern.jpg already exists\033[0m"
-            echo "  Cover File Name: $jpg_filename"
+            echo -e "  \033[93m$filename_pattern.jpg already exists\033[0m"
+            echo -e "  Cover File Name: $jpg_filename"
 
         else
 
             jpg_filename="${filename_pattern}.jpg"
 
             # print a message
-            echo "  Cover File Name: $jpg_filename"        
+            echo -e "  Cover File Name: $jpg_filename"        
 
         fi
 
@@ -1549,22 +1748,23 @@ function music_mode() {
     fi
 
 
-    # # if jpg_filename is not empty, set the cover art metadata
-    # if [[ -f "$output_folder/$jpg_filename" ]]; then
+    # if jpg_filename is not empty, set the cover art metadata
+    if [[ -f "$output_folder/$jpg_filename" ]]; then
 
-    #     # use ffmpeg to download playurl and save it as m4a_filename, use the cover image as album art, and set the title, album and artist metadata
-    #     ffmpeg -i "$playurl" -i "$output_folder/$jpg_filename" -map 0:0 -map 1:0 -c copy -metadata title="$title" -metadata album="$album" -metadata artist="$author" -metadata:s:v title="Album cover" -metadata:s:v comment="Cover (Front)" "$output_folder/$m4a_filename"
+        # use ffmpeg to download playurl, use aac as audio codec and save it as audio_filename, and set the title, album and artist metadata, integrate the cover art from jpg_filename
+        "${ffmpeg_path}" -hide_banner -loglevel quiet -i "$playurl" -vn -c:a ${codec} -metadata title="$title" -metadata album="$album" -metadata artist="$author" -metadata cover="$output_folder/$jpg_filename" "$output_folder/$audio_filename"
 
-    # else
+    else
 
-        # use ffmpeg to download playurl and save it as m4a_filename, and set the title, album and artist metadata
-        "${ffmpeg_path}" -hide_banner -loglevel quiet -i "$playurl" -c copy -metadata title="$title" -metadata album="$album" -metadata artist="$author" "$output_folder/$m4a_filename"
+        # use ffmpeg to download playurl, use aac as audio codec and save it as audio_filename, and set the title, album and artist metadata
+        "${ffmpeg_path}" -hide_banner -loglevel quiet  -i "$playurl" -vn -c:a ${codec} -metadata title="$title" -metadata album="$album" -metadata artist="$author" "$output_folder/$audio_filename"
 
-    # fi
+    fi
 
+    get_file_size=$(wc -c "$output_folder/$audio_filename" | awk '{print $1}')
 
-    # check if the music was downloaded successfully
-    if [[ ! -f "$output_folder/$m4a_filename" ]]
+    # check if the music was downloaded successfully and the file size is bigger than 10 KB
+    if [[ -f "$output_folder/$audio_filename" ]] && [[ $get_file_size -lt 10240 ]]
     then
         # if no, print an error message
         echo -e "  \033[1;91mSound download failed.\033[0m"
@@ -1584,7 +1784,7 @@ function music_mode() {
     echo ""
 
     # repeat the function
-    music_mode
+    sound_mode
 
 
 }
@@ -1701,7 +1901,7 @@ function main_menu() {
             fi
 
             ask_for_output_folder
-            music_mode
+            sound_mode
 
 
         elif [[ "${modeoptions[$modechoice]}" == "Restore Mode" ]]
@@ -1824,7 +2024,7 @@ function main_menu() {
             fi
 
             ask_for_output_folder
-            music_mode
+            sound_mode
 
         fi
 
