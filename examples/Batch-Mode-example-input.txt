@@ -1,3 +1,7 @@
+# This is an example text file. This is how your input for Batch and Restore Mode should 
+# look like - one video per line. Be sure there are actual line breaks after each URL,
+# otherwise the links won't be recognized. Comment lines strt with '#', empty lines are ignored.
+
 https://www.tiktok.com/@olivertree/video/7152944917373865258
 https://www.tiktok.com/@acehighally/video/7156727412724731142
 https://www.tiktok.com/@dr.robotmik/video/7137348620742970667
